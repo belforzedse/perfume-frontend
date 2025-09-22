@@ -1,114 +1,176 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import {
   getScentFamilies,
   getOccasions,
   getIntensities,
-  formatToman,
+  getGenders,
+  getBrands,
+  getNoteOptions,
   toPersianNumbers,
 } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 interface QuestionnaireAnswers {
-  scent_families: string[];
-  occasions: string[];
-  intensities: string[];
-  price_min: number;
-  price_max: number;
+  families: string[];
+  seasons: string[];
+  characters: string[];
+  genders: string[];
+  preferredBrands: string[];
+  preferredNotes: string[];
+  avoidNotes: string[];
 }
+
+type QuestionType = "multiple" | "single";
+
+interface QuestionDefinition {
+  title: string;
+  subtitle: string;
+  type: QuestionType;
+  options: string[];
+  key: keyof QuestionnaireAnswers;
+  optional?: boolean;
+  maxSelections?: number;
+}
+
+const toOptions = (values: string[]): string[] =>
+  values.sort((a, b) => a.localeCompare(b, "fa"));
 
 export default function Questionnaire() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>({
-    scent_families: [],
-    occasions: [],
-    intensities: [],
-    price_min: 500000, // 500,000 Toman
-    price_max: 10000000, // 10,000,000 Toman
+    families: [],
+    seasons: [],
+    characters: [],
+    genders: [],
+    preferredBrands: [],
+    preferredNotes: [],
+    avoidNotes: [],
   });
 
-  // Options from Strapi
-  const [scentFamilies, setScentFamilies] = useState<string[]>([]);
-  const [occasions, setOccasions] = useState<string[]>([]);
-  const [intensities, setIntensities] = useState<string[]>([]);
+  const [families, setFamilies] = useState<string[]>([]);
+  const [seasons, setSeasons] = useState<string[]>([]);
+  const [characters, setCharacters] = useState<string[]>([]);
+  const [genders, setGendersState] = useState<string[]>([]);
+  const [brands, setBrands] = useState<string[]>([]);
+  const [notes, setNotes] = useState<string[]>([]);
 
   useEffect(() => {
     async function fetchOptions() {
-      const [families, occs, ints] = await Promise.all([
-        getScentFamilies(),
-        getOccasions(),
-        getIntensities(),
-      ]);
-      setScentFamilies(families);
-      setOccasions(occs);
-      setIntensities(ints);
+      const [familyValues, seasonValues, characterValues, genderValues, brandValues, noteValues] =
+        await Promise.all([
+          getScentFamilies(),
+          getOccasions(),
+          getIntensities(),
+          getGenders(),
+          getBrands(),
+          getNoteOptions(),
+        ]);
+
+      setFamilies(toOptions(familyValues));
+      setSeasons(toOptions(seasonValues));
+      setCharacters(toOptions(characterValues));
+      setGendersState(toOptions(genderValues));
+      setBrands(toOptions(brandValues));
+      setNotes(noteValues.sort((a, b) => a.localeCompare(b, "en")));
     }
+
     fetchOptions();
   }, []);
 
-  const questions = [
+  const questions: QuestionDefinition[] = [
     {
-      title: "کدام خانواده رایحه را ترجیح می‌دهید؟",
-      subtitle: "تمام گزینه‌های مورد علاقه‌تان را انتخاب کنید",
+      title: "کدام خانواده‌های بویایی را ترجیح می‌دهید؟",
+      subtitle: "می‌توانید چند گزینه را انتخاب کنید.",
       type: "multiple",
-      options: scentFamilies || [],
-      key: "scent_families" as keyof QuestionnaireAnswers,
+      options: families,
+      key: "families",
     },
     {
-      title: "این عطر را در چه مواقعی استفاده خواهید کرد؟",
-      subtitle: "مناسبت‌های مورد نظر خود را انتخاب کنید",
+      title: "عطر برای چه فصلی مناسب باشد؟",
+      subtitle: "مواردی که ترجیح می‌دهید انتخاب کنید.",
       type: "multiple",
-      options: occasions || [],
-      key: "occasions" as keyof QuestionnaireAnswers,
+      options: seasons,
+      key: "seasons",
     },
     {
-      title: "شدت عطر شما چقدر باشد؟",
-      subtitle: "شدت مورد علاقه‌تان را انتخاب کنید",
+      title: "چه حس و حالی را بیشتر دوست دارید؟",
+      subtitle: "تنها یک گزینه را انتخاب کنید.",
       type: "single",
-      options: intensities || [],
-      key: "intensities" as keyof QuestionnaireAnswers,
+      options: characters,
+      key: "characters",
     },
     {
-      title: "بودجه شما چقدر است؟",
-      subtitle: "محدوده قیمت مورد نظر خود را تنظیم کنید",
-      type: "price",
-      key: "price_range",
+      title: "این عطر بیشتر برای چه کسی است؟",
+      subtitle: "جنسیت هدف را مشخص کنید.",
+      type: "single",
+      options: genders,
+      key: "genders",
+    },
+    {
+      title: "برندهای محبوب شما کدام‌اند؟",
+      subtitle: "حداکثر سه برند را انتخاب کنید (اختیاری).",
+      type: "multiple",
+      options: brands,
+      key: "preferredBrands",
+      optional: true,
+      maxSelections: 3,
+    },
+    {
+      title: "به دنبال چه نت‌هایی هستید؟",
+      subtitle: "حداکثر شش نت مورد علاقه خود را انتخاب کنید (اختیاری).",
+      type: "multiple",
+      options: notes,
+      key: "preferredNotes",
+      optional: true,
+      maxSelections: 6,
+    },
+    {
+      title: "از چه نت‌هایی باید دوری کنیم؟",
+      subtitle: "نت‌هایی که نمی‌پسندید را مشخص کنید (اختیاری).",
+      type: "multiple",
+      options: notes,
+      key: "avoidNotes",
+      optional: true,
+      maxSelections: 6,
     },
   ];
 
   const currentQuestion = questions[currentStep];
 
-  const handleOptionToggle = (
-    option: string,
-    key: keyof QuestionnaireAnswers
-  ) => {
+  const handleOptionToggle = (question: QuestionDefinition, option: string) => {
     setAnswers((prev) => {
-      if (currentQuestion.type === "single") {
-        return { ...prev, [key]: [option] };
-      } else {
-        const currentValues = prev[key] as string[];
-        const isSelected = currentValues.includes(option);
-        return {
-          ...prev,
-          [key]: isSelected
-            ? currentValues.filter((v) => v !== option)
-            : [...currentValues, option],
-        };
-      }
-    });
-  };
+      const key = question.key;
+      const currentValues = prev[key];
+      const isSelected = currentValues.includes(option);
+      const atLimit =
+        !isSelected &&
+        typeof question.maxSelections === "number" &&
+        currentValues.length >= question.maxSelections;
 
-  const handlePriceChange = (min: number, max: number) => {
-    setAnswers((prev) => ({ ...prev, price_min: min, price_max: max }));
+      if (question.type === "single") {
+        return { ...prev, [key]: isSelected ? [] : [option] };
+      }
+
+      if (atLimit) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [key]: isSelected
+          ? currentValues.filter((value) => value !== option)
+          : [...currentValues, option],
+      };
+    });
   };
 
   const nextStep = () => {
     if (currentStep < questions.length - 1) {
       setCurrentStep(currentStep + 1);
     } else {
-      // Go to recommendations with answers
       const queryParams = new URLSearchParams({
         answers: JSON.stringify(answers),
       });
@@ -123,10 +185,12 @@ export default function Questionnaire() {
   };
 
   const canProceed = () => {
-    const key = currentQuestion.key as keyof QuestionnaireAnswers;
-    if (currentQuestion.type === "price") return true;
-    const values = answers[key] as string[];
-    return values && values.length > 0;
+    const question = currentQuestion;
+    if (question.optional) {
+      return true;
+    }
+    const values = answers[question.key];
+    return values.length > 0;
   };
 
   const progressPercentage = Math.round(
@@ -134,133 +198,77 @@ export default function Questionnaire() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-pink-100 to-purple-100 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 py-10">
+      <div className="surface-card w-full max-w-3xl space-y-8">
         {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="flex justify-between text-sm text-gray-500 mb-2">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between text-xs text-subtle">
             <span>{toPersianNumbers(progressPercentage.toString())}%</span>
             <span>
-              سوال {toPersianNumbers((currentStep + 1).toString())} از{" "}
+              پرسش {toPersianNumbers((currentStep + 1).toString())} از{" "}
               {toPersianNumbers(questions.length.toString())}
             </span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
+          <div className="h-2 w-full rounded-full bg-soft">
             <div
-              className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+              className="h-2 rounded-full bg-[var(--color-accent)] transition-all duration-300"
               style={{ width: `${progressPercentage}%` }}
             />
           </div>
         </div>
 
         {/* Question */}
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-800 mb-2">
+        <div className="space-y-2 text-center sm:text-right">
+          <h2 className="text-3xl font-semibold text-[var(--color-foreground)]">
             {currentQuestion.title}
           </h2>
-          <p className="text-gray-600">{currentQuestion.subtitle}</p>
+          <p className="text-muted">{currentQuestion.subtitle}</p>
         </div>
 
         {/* Options */}
-        <div className="mb-8">
-          {currentQuestion.type === "price" ? (
-            <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <span className="text-lg font-semibold">
-                  {formatToman(answers.price_max)}
-                </span>
-                <span className="text-lg font-semibold">
-                  {formatToman(answers.price_min)}
-                </span>
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm text-gray-600 mb-2">
-                    حداقل قیمت
-                  </label>
-                  <input
-                    type="range"
-                    min="500000"
-                    max="20000000"
-                    step="100000"
-                    value={answers.price_min}
-                    onChange={(e) =>
-                      handlePriceChange(
-                        parseInt(e.target.value),
-                        answers.price_max
-                      )
-                    }
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-600 mb-2">
-                    حداکثر قیمت
-                  </label>
-                  <input
-                    type="range"
-                    min="500000"
-                    max="20000000"
-                    step="100000"
-                    value={answers.price_max}
-                    onChange={(e) =>
-                      handlePriceChange(
-                        answers.price_min,
-                        parseInt(e.target.value)
-                      )
-                    }
-                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider"
-                  />
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {currentQuestion.options?.map((option) => {
-                const key = currentQuestion.key as keyof QuestionnaireAnswers;
-                const values = answers[key] as string[];
-                const isSelected = values.includes(option);
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {currentQuestion.options?.map((option) => {
+              const key = currentQuestion.key;
+              const values = answers[key];
+              const isSelected = values.includes(option);
+              const disabled =
+                !isSelected &&
+                typeof currentQuestion.maxSelections === "number" &&
+                values.length >= currentQuestion.maxSelections;
 
-                return (
-                  <button
-                    key={option}
-                    onClick={() => handleOptionToggle(option, key)}
-                    className={`p-4 rounded-lg border-2 transition-all duration-200 text-center ${
-                      isSelected
-                        ? "border-purple-600 bg-purple-50 text-purple-800"
-                        : "border-gray-200 hover:border-purple-300 hover:bg-purple-25"
-                    }`}
-                  >
-                    <span className="font-medium text-lg">{option}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+              return (
+                <button
+                  key={option}
+                  onClick={() => handleOptionToggle(currentQuestion, option)}
+                  disabled={disabled}
+                  className={`rounded-xl border-2 p-4 text-center font-medium transition-all duration-200 ${
+                    isSelected
+                      ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)]"
+                      : "border-[var(--color-border)] bg-background text-[var(--color-foreground)] hover:border-[var(--color-accent)] hover:bg-[var(--accent-soft)]"
+                  } ${disabled ? "opacity-40 cursor-not-allowed" : ""}`}
+                >
+                  <span className="text-lg">{option}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Navigation */}
-        <div className="flex justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
           <button
             onClick={nextStep}
             disabled={!canProceed()}
-            className={`px-6 py-3 rounded-lg font-medium transition-all ${
-              canProceed()
-                ? "bg-purple-600 text-white hover:bg-purple-700"
-                : "bg-gray-100 text-gray-400 cursor-not-allowed"
-            }`}
+            className="btn w-full sm:w-auto disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
           >
-            {currentStep === questions.length - 1 ? "دریافت پیشنهادات" : "بعدی"}
+            {currentStep === questions.length - 1 ? "مشاهده پیشنهادها" : "بعدی"}
           </button>
 
           <button
             onClick={prevStep}
             disabled={currentStep === 0}
-            className={`px-6 py-3 rounded-lg font-medium transition-all ${
-              currentStep === 0
-                ? "bg-gray-100 text-gray-400 cursor-not-allowed"
-                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-            }`}
+            className="btn-ghost w-full sm:w-auto disabled:cursor-not-allowed disabled:opacity-50"
           >
             قبلی
           </button>

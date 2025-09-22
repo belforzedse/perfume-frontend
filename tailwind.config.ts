@@ -9,7 +9,7 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        persian: ["Vazir", "Tahoma", "Arial", "sans-serif"],
+        persian: ["Peyda", "Tahoma", "Arial", "sans-serif"],
       },
     },
   },
