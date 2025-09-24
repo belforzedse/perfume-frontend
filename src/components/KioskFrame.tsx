@@ -16,9 +16,12 @@ export default function KioskFrame({
   const router = useRouter();
   const pathname = usePathname();
   const idleTimerRef = useRef<number | null>(null);
+  const isHome = pathname === "/";
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || isHome) {
+      return;
+    }
 
     const goHome = () => {
       if (pathname === "/") return;
@@ -52,18 +55,24 @@ export default function KioskFrame({
       }
     };
 
-    const passiveEvents: Array<keyof WindowEventMap> = [
-      "pointerdown",
-      "pointermove",
-      "pointerup",
-      "touchstart",
-      "touchmove",
-      "wheel",
-    ];
-    const activeEvents: Array<keyof WindowEventMap> = ["keydown"];
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!(event.target instanceof Element)) return;
+      const button = event.target.closest("button, [role='button']");
+      if (button) {
+        resetTimer();
+      }
+    };
 
-    passiveEvents.forEach((eventName) => window.addEventListener(eventName, resetTimer, { passive: true }));
-    activeEvents.forEach((eventName) => window.addEventListener(eventName, resetTimer));
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!(event.target instanceof Element)) return;
+      const button = event.target.closest("button, [role='button']");
+      if (button || event.key === "Enter" || event.key === " ") {
+        resetTimer();
+      }
+    };
+
+    window.addEventListener("pointerdown", handlePointerDown, { passive: true });
+    window.addEventListener("keydown", handleKeyDown);
     document.addEventListener("visibilitychange", handleVisibility);
 
     resetTimer();
@@ -73,11 +82,11 @@ export default function KioskFrame({
         window.clearTimeout(idleTimerRef.current);
         idleTimerRef.current = null;
       }
-      passiveEvents.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
-      activeEvents.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
+      window.removeEventListener("pointerdown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [router, pathname]);
+  }, [router, pathname, isHome]);
 
   return (
     <div className="kiosk-root">

@@ -5,7 +5,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import AnimatedBackground from "@/components/AnimatedBackground";
+import KioskFrame from "@/components/KioskFrame";
 import { getPerfumes, toPersianNumbers } from "@/lib/api";
 import {
   parseAnswers,
@@ -30,9 +30,8 @@ const StateMessage = ({
   actionLabel: string;
   secondaryAction?: ReactNode;
 }) => (
-  <div className="relative flex h-screen flex-col items-center justify-center gap-4 px-6 text-center">
-    <AnimatedBackground />
-    <div className="relative z-10 space-y-3 rounded-3xl border border-white/20 bg-white/10 p-8 backdrop-blur-[32px]">
+  <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center">
+    <div className="space-y-3 rounded-3xl border border-white/20 bg-white/10 p-8 backdrop-blur-[32px]">
       <p className="text-base font-semibold text-[var(--color-foreground)]">{title}</p>
       {description && <p className="m-0 text-sm text-muted">{description}</p>}
       <div className="flex flex-col items-center gap-2">
@@ -196,9 +195,8 @@ function RecommendationsContent() {
 
   if (loading) {
     return (
-      <div className="relative flex h-screen items-center justify-center">
-        <AnimatedBackground />
-        <div className="relative z-10 loader-orbit" role="status" aria-label="در حال بارگذاری" />
+      <div className="flex h-full items-center justify-center">
+        <div className="loader-orbit" role="status" aria-label="در حال بارگذاری" />
       </div>
     );
   }
@@ -235,8 +233,7 @@ function RecommendationsContent() {
   }
 
   return (
-    <div className="relative flex h-screen w-full items-center justify-center px-4 lg:px-8">
-      <AnimatedBackground />
+    <div className="flex h-full w-full items-center justify-center px-4 lg:px-8">
       <div className="glass-card relative flex h-[92vh] w-full max-w-[1400px] flex-col gap-6 rounded-[32px] px-6 py-6 animate-blur-in">
         <header className="flex items-center justify-between animate-slide-in-right">
           <h1 className="text-3xl font-semibold text-[var(--color-foreground)]">پیشنهادهای شما</h1>
@@ -273,15 +270,16 @@ function RecommendationsContent() {
 
 export default function RecommendationsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="relative flex h-screen items-center justify-center">
-          <AnimatedBackground />
-          <div className="relative z-10 loader-orbit" role="status" aria-label="در حال بارگذاری" />
-        </div>
-      }
-    >
-      <RecommendationsContent />
-    </Suspense>
+    <KioskFrame>
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center">
+            <div className="loader-orbit" role="status" aria-label="در حال بارگذاری" />
+          </div>
+        }
+      >
+        <RecommendationsContent />
+      </Suspense>
+    </KioskFrame>
   );
 }
