@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 
 interface GradientCircle {
   id: number;
@@ -13,7 +13,6 @@ interface GradientCircle {
 
 export default function AnimatedBackground() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const isAnimatingRef = useRef(false);
 
   const circles: GradientCircle[] = [
     {
@@ -38,22 +37,6 @@ export default function AnimatedBackground() {
       color: "from-orange-100/20 to-amber-100/30",
     },
   ];
-
-  useEffect(() => {
-    const handleButtonClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('button') || target.closest('a')) {
-        // Simple animation trigger - let Framer Motion handle the animation
-        isAnimatingRef.current = true;
-        setTimeout(() => {
-          isAnimatingRef.current = false;
-        }, 2500);
-      }
-    };
-
-    document.addEventListener('click', handleButtonClick);
-    return () => document.removeEventListener('click', handleButtonClick);
-  }, []);
 
   const getAnimationProps = (index: number) => {
     const circle = circles[index];
@@ -82,25 +65,6 @@ export default function AnimatedBackground() {
         duration: 8,
         repeat: Infinity,
         delay: index * 1.5,
-      }
-    };
-  };
-
-  const getClickAnimationProps = (index: number) => {
-    const time = Date.now() / 1000;
-    const seed = time + index;
-    const newX = 20 + (Math.sin(seed) * 60 + 60) / 2;
-    const newY = 20 + (Math.cos(seed * 1.3) * 60 + 60) / 2;
-
-    return {
-      animate: isAnimatingRef.current ? {
-        x: `${newX}%`,
-        y: `${newY}%`,
-        scale: [1, 1.4, 1.1, 1],
-        rotate: [0, 10, -5, 0],
-      } : {},
-      transition: {
-        duration: 2.5,
       }
     };
   };
