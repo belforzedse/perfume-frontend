@@ -237,7 +237,7 @@ function RecommendationsContent() {
   return (
     <div className="relative flex h-screen w-full items-center justify-center px-4 lg:px-8">
       <AnimatedBackground />
-      <div className="relative flex h-[92vh] w-full max-w-[1400px] flex-col gap-6 rounded-3xl bg-white/8 backdrop-blur-[48px] border border-white/15 px-6 py-6 shadow-2xl animate-blur-in">
+      <div className="glass-card relative flex h-[92vh] w-full max-w-[1400px] flex-col gap-6 rounded-[32px] px-6 py-6 animate-blur-in">
         <header className="flex items-center justify-between animate-slide-in-right">
           <h1 className="text-3xl font-semibold text-[var(--color-foreground)]">پیشنهادهای شما</h1>
           {recommendations.length > 0 && (

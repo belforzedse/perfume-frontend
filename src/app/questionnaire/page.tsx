@@ -14,7 +14,7 @@ import {
 } from "@/lib/questionnaire";
 
 const BTN_BASE =
-  "rounded-3xl border-2 px-4 py-5 text-center text-lg font-semibold transition-transform duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] tap-highlight touch-target touch-feedback";
+  "question-option text-base sm:text-lg font-semibold animate-fade-in-up transition-transform duration-150 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(255,255,255,0.45)] tap-highlight touch-target touch-feedback";
 
 const formatNumber = (value: number) => toPersianNumbers(String(value));
 
@@ -143,7 +143,7 @@ export default function Questionnaire() {
   return (
     <KioskFrame>
       <div className="relative flex h-full w-full items-center justify-center">
-        <div className="relative flex h-full w-full max-w-[1200px] flex-col gap-6 rounded-3xl bg-white/8 backdrop-blur-[48px] border border-white/15 px-6 py-6 shadow-2xl animate-blur-in">
+        <div className="glass-card relative flex h-full w-full max-w-[1200px] flex-col gap-6 rounded-[32px] px-6 py-6 animate-blur-in">
           <header className="flex items-center justify-between animate-slide-in-right">
             <div className="space-y-2 text-right">
               <p className="m-0 text-xs text-muted" aria-live="polite">
@@ -182,11 +182,9 @@ export default function Questionnaire() {
                     onClick={() => toggle(option.value)}
                     disabled={disabled}
                     aria-pressed={isSelected}
-                    className={`${BTN_BASE} text-base sm:text-lg animate-fade-in-up ${delayClass} ${
-                      isSelected
-                        ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] "
-                        : "border-[var(--color-border)] bg-background text-[var(--color-foreground)]"
-                    } ${disabled ? "opacity-50" : ""}`}
+                    className={`${BTN_BASE} ${delayClass} ${
+                      isSelected ? "question-option--selected" : "question-option--default"
+                    } ${disabled ? "question-option--disabled" : ""}`}
                   >
                     {option.label}
                   </button>
