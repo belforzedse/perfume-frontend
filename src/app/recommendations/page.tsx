@@ -42,20 +42,20 @@ const PENALTY_WEIGHTS = {
 } as const;
 
 const TEXT = {
-  loading: "\u062F\u0631 \u062D\u0627\u0644 \u0628\u0627\u0631\u06AF\u0630\u0627\u0631\u06CC",
-  noAnswers: "\u067E\u0627\u0633\u062E\u06CC \u062B\u0628\u062A \u0646\u0634\u062F.",
-  startQuestionnaire: "\u0634\u0631\u0648\u0639 \u067E\u0631\u0633\u0634\u0646\u0627\u0645\u0647",
-  heading: "\u067E\u06CC\u0634\u0646\u0647\u0627\u062F\u0647\u0627\u06CC \u0634\u0645\u0627",
-  empty: "\u0645\u0648\u0631\u062F \u0645\u0646\u0627\u0633\u0628\u06CC \u067E\u06CC\u062F\u0627 \u0646\u0634\u062F. \u0644\u0637\u0641\u0627\u064B \u067E\u0627\u0633\u062E\u200C\u0647\u0627 \u0631\u0627 \u062A\u063A\u06CC\u06CC\u0631 \u062F\u0647\u06CC\u062F.",
-  reasonMood: "\u062D\u0627\u0644\u200C\u0648\u0647\u0648\u0627",
-  reasonMoment: "\u0645\u0648\u0642\u0639\u06CC\u062A",
-  reasonTime: "\u0632\u0645\u0627\u0646 \u0627\u0633\u062A\u0641\u0627\u062F\u0647",
-  reasonIntensity: "\u0634\u062F\u062A \u067E\u062E\u0634 \u0628\u0648",
-  reasonStyle: "\u0633\u0628\u06A9 \u0645\u0648\u0631\u062F \u0627\u0646\u062A\u0638\u0627\u0631",
-  reasonNotes: "\u06CC\u0627\u062F\u062F\u0627\u0634\u062A \u0645\u062D\u0628\u0648\u0628",
-  penaltyDislikes: "\u0628\u0631\u062E\u06CC \u0646\u064F\u062A\u200C\u0647\u0627\u06CC \u0646\u0627\u0645\u0637\u0644\u0648\u0628 \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0634\u062F",
-  synergy: "\u062A\u0631\u06A9\u06CC\u0628 \u0627\u0646\u062A\u062E\u0627\u0628\u200C\u0647\u0627 \u0628\u0633\u06CC\u0627\u0631 \u0647\u0645\u0627\u0647\u0646\u06AF \u0627\u0633\u062A",
-  weakCoverage: "\u067E\u0648\u0634\u0634 \u062A\u0631\u062C\u06CC\u062D\u0627\u062A \u0627\u0635\u0644\u06CC \u06A9\u0627\u0645\u0644 \u0646\u06CC\u0633\u062A",
+  loading: "در حال بارگذاری",
+  noAnswers: "پاسخی ثبت نشد.",
+  startQuestionnaire: "شروع پرسشنامه",
+  heading: "پیشنهادهای شما",
+  empty: "مورد مناسبی پیدا نشد. لطفاً پاسخ‌ها را تغییر دهید.",
+  reasonMood: "حال‌وهوا",
+  reasonMoment: "موقعیت",
+  reasonTime: "زمان استفاده",
+  reasonIntensity: "شدت پخش بو",
+  reasonStyle: "سبک مورد انتظار",
+  reasonNotes: "یادداشت محبوب",
+  penaltyDislikes: "برخی نُت‌های نامطلوب شناسایی شد",
+  synergy: "ترکیب انتخاب‌ها بسیار هماهنگ است",
+  weakCoverage: "پوشش ترجیحات اصلی کامل نیست",
 };
 
 const STRONG_KEYWORDS = [
