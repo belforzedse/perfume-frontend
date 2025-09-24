@@ -5,8 +5,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import KioskFrame from "@/components/KioskFrame";
 import NavigationControls from "@/components/questionnaire/NavigationControls";
+import NotePreferenceGrid, {
+  type NotePreferenceValue,
+} from "@/components/questionnaire/NotePreferenceGrid";
 import OptionGrid from "@/components/questionnaire/OptionGrid";
-import ProgressPanel from "@/components/questionnaire/ProgressPanel";
+import ReviewStep from "@/components/questionnaire/ReviewStep";
 import { toPersianNumbers } from "@/lib/api";
 import {
   TEXT,
@@ -18,7 +21,46 @@ import {
   sanitizeAnswers,
   areAnswersEqual,
   firstIncompleteStep,
+  isNotePreferenceQuestion,
+  QUESTION_KEYS,
 } from "@/lib/questionnaire";
+
+const ANSWER_STORAGE_KEY = "perfume-quiz-answers-v2";
+const SETTINGS_STORAGE_KEY = "perfume-quiz-settings-v1";
+
+interface QuestionnaireSettings {
+  autoAdvanceSingle: boolean;
+}
+
+const DEFAULT_SETTINGS: QuestionnaireSettings = {
+  autoAdvanceSingle: false,
+};
+
+const readStoredAnswers = (): QuestionnaireAnswers | null => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(ANSWER_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<QuestionnaireAnswers>;
+    return sanitizeAnswers(parsed);
+  } catch (error) {
+    console.warn("Unable to read stored answers", error);
+    return null;
+  }
+};
+
+const readStoredSettings = (): QuestionnaireSettings => {
+  if (typeof window === "undefined") return DEFAULT_SETTINGS;
+  try {
+    const raw = window.sessionStorage.getItem(SETTINGS_STORAGE_KEY);
+    if (!raw) return DEFAULT_SETTINGS;
+    const parsed = JSON.parse(raw) as Partial<QuestionnaireSettings>;
+    return { ...DEFAULT_SETTINGS, ...parsed };
+  } catch (error) {
+    console.warn("Unable to read stored settings", error);
+    return DEFAULT_SETTINGS;
+  }
+};
 
 const Questionnaire: React.FC = () => {
   const router = useRouter();
@@ -36,57 +78,146 @@ const Questionnaire: React.FC = () => {
     }
   }, [searchParams]);
 
-  const initialState = answersFromQuery ?? initialAnswers();
+  const storedAnswers = useMemo(() => readStoredAnswers(), []);
+  const initialState = answersFromQuery ?? storedAnswers ?? initialAnswers();
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(initialState);
-  const [currentStep, setCurrentStep] = useState(() => firstIncompleteStep(initialState));
+  const initialStepIndex = answersFromQuery
+    ? firstIncompleteStep(answersFromQuery)
+    : storedAnswers
+      ? firstIncompleteStep(storedAnswers)
+      : 0;
+  const [currentStep, setCurrentStep] = useState(initialStepIndex);
+  const [isReview, setIsReview] = useState(false);
+  const [settings, setSettings] = useState<QuestionnaireSettings>(() => readStoredSettings());
+  const [isOverviewOpen, setIsOverviewOpen] = useState(false);
 
   useEffect(() => {
     if (!answersFromQuery) return;
     setAnswers((prev) => (areAnswersEqual(prev, answersFromQuery) ? prev : answersFromQuery));
     setCurrentStep(firstIncompleteStep(answersFromQuery));
+    setIsReview(false);
+    setIsOverviewOpen(false);
   }, [answersFromQuery]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.sessionStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+    } catch (error) {
+      console.warn("Failed to persist settings", error);
+    }
+  }, [settings]);
 
   const questions = QUESTION_CONFIG;
   const totalSteps = questions.length;
-  const currentQuestion = questions[currentStep];
-  const selectedValues = answers[currentQuestion.key];
+  const sanitizedAnswers = useMemo(() => sanitizeAnswers(answers), [answers]);
+  const encodedAnswers = useMemo(() => JSON.stringify(sanitizedAnswers), [sanitizedAnswers]);
 
-  const encodedAnswers = useMemo(() => JSON.stringify(answers), [answers]);
+  const searchParamsString = useMemo(() => searchParams.toString(), [searchParams]);
+  const requestedStep = useMemo(() => {
+    const value = searchParams.get("step");
+    if (!value) return null;
+    if (value === "review") return "review" as const;
+    if (/^\d+$/.test(value)) {
+      const index = Number(value);
+      if (!Number.isNaN(index)) {
+        return Math.min(Math.max(index, 0), totalSteps - 1);
+      }
+    }
+    const targetIndex = questions.findIndex((question) => question.key === value);
+    return targetIndex >= 0 ? targetIndex : null;
+  }, [questions, searchParams, totalSteps]);
+
+  useEffect(() => {
+    if (requestedStep === null) return;
+    if (requestedStep === "review") {
+      setIsReview(true);
+      setIsOverviewOpen(false);
+      return;
+    }
+    setIsReview(false);
+    setCurrentStep((prev) => (prev === requestedStep ? prev : requestedStep));
+    setIsOverviewOpen(false);
+  }, [requestedStep]);
+
   const hasAnswers = useMemo(
-    () => questions.some((question) => answers[question.key].length > 0),
-    [answers, questions]
+    () => QUESTION_KEYS.some((key) => sanitizedAnswers[key].length > 0),
+    [sanitizedAnswers]
   );
 
   useEffect(() => {
-    if (!hasAnswers) {
-      if (searchParams.get("answers")) {
-        router.replace("/questionnaire", { scroll: false });
+    if (typeof window === "undefined") return;
+    try {
+      if (hasAnswers) {
+        window.sessionStorage.setItem(ANSWER_STORAGE_KEY, encodedAnswers);
+      } else {
+        window.sessionStorage.removeItem(ANSWER_STORAGE_KEY);
       }
-      return;
+    } catch (error) {
+      console.warn("Failed to persist answers", error);
     }
+  }, [encodedAnswers, hasAnswers]);
 
-    const currentParam = searchParams.get("answers");
-    if (currentParam === encodedAnswers) return;
-    const query = new URLSearchParams({ answers: encodedAnswers }).toString();
-    router.replace(`/questionnaire?${query}`, { scroll: false });
-  }, [encodedAnswers, hasAnswers, router, searchParams]);
+  useEffect(() => {
+    const nextParams = new URLSearchParams();
+    if (hasAnswers) {
+      nextParams.set("answers", encodedAnswers);
+    }
+    if (isReview) {
+      nextParams.set("step", "review");
+    } else if (currentStep > 0) {
+      nextParams.set("step", String(currentStep));
+    }
+    const nextString = nextParams.toString();
+    if (nextString === searchParamsString) return;
+    const path = nextString.length ? `/questionnaire?${nextString}` : "/questionnaire";
+    router.replace(path, { scroll: false });
+  }, [encodedAnswers, hasAnswers, isReview, currentStep, router, searchParamsString]);
+
+  const currentQuestion = !isReview ? questions[currentStep] : null;
+  const isNoteStep = currentQuestion ? isNotePreferenceQuestion(currentQuestion) : false;
+  const selectedValues = currentQuestion ? sanitizedAnswers[currentQuestion.key] : [];
+  const selectedCount = selectedValues.length;
 
   const goNext = useCallback(() => {
-    if (currentStep < totalSteps - 1) {
-      setCurrentStep((step) => Math.min(step + 1, totalSteps - 1));
+    if (isReview) {
+      const query = new URLSearchParams({ answers: JSON.stringify(sanitizedAnswers) }).toString();
+      router.push(`/recommendations?${query}`);
       return;
     }
 
-    const query = new URLSearchParams({ answers: JSON.stringify(sanitizeAnswers(answers)) }).toString();
-    router.push(`/recommendations?${query}`);
-  }, [answers, currentStep, router, totalSteps]);
+    if (currentStep < totalSteps - 1) {
+      setCurrentStep((step) => Math.min(step + 1, totalSteps - 1));
+      setIsOverviewOpen(false);
+      return;
+    }
+
+    setIsReview(true);
+    setIsOverviewOpen(false);
+  }, [currentStep, isReview, router, sanitizedAnswers, totalSteps]);
 
   const goBack = useCallback(() => {
+    if (isReview) {
+      setIsReview(false);
+      setCurrentStep(totalSteps - 1);
+      setIsOverviewOpen(false);
+      return;
+    }
     setCurrentStep((step) => Math.max(step - 1, 0));
-  }, []);
+    setIsOverviewOpen(false);
+  }, [isReview, totalSteps]);
+
+  const noteQuestionDefinition = useMemo(
+    () => questions.find((question) => isNotePreferenceQuestion(question)),
+    [questions]
+  );
+
+  const noteLikeLimit = noteQuestionDefinition?.maxSelections ?? Number.POSITIVE_INFINITY;
+  const noteDislikeLimit = noteQuestionDefinition?.maxDislikes ?? noteLikeLimit;
 
   const toggle = useCallback(
     (value: string) => {
+      if (!currentQuestion || isNotePreferenceQuestion(currentQuestion)) return;
       setAnswers((prev) => {
         const key = currentQuestion.key;
         const selected = prev[key];
@@ -111,8 +242,43 @@ const Questionnaire: React.FC = () => {
     [currentQuestion]
   );
 
+  const updateNotePreference = useCallback(
+    (value: string, preference: NotePreferenceValue) => {
+      setAnswers((prev) => {
+        const likes = new Set(prev.noteLikes);
+        const dislikes = new Set(prev.noteDislikes);
+        likes.delete(value);
+        dislikes.delete(value);
+        if (preference === "like") {
+          if (likes.size >= noteLikeLimit && !likes.has(value)) {
+            return prev;
+          }
+          likes.add(value);
+        } else if (preference === "dislike") {
+          if (dislikes.size >= noteDislikeLimit && !dislikes.has(value)) {
+            return prev;
+          }
+          dislikes.add(value);
+        }
+        return {
+          ...prev,
+          noteLikes: Array.from(likes),
+          noteDislikes: Array.from(dislikes),
+        };
+      });
+    },
+    [noteDislikeLimit, noteLikeLimit]
+  );
+
   const resetCurrent = useCallback(() => {
+    if (!currentQuestion) return;
     setAnswers((prev) => {
+      if (isNotePreferenceQuestion(currentQuestion)) {
+        if (prev.noteLikes.length === 0 && prev.noteDislikes.length === 0) {
+          return prev;
+        }
+        return { ...prev, noteLikes: [], noteDislikes: [] };
+      }
       const key = currentQuestion.key;
       if (prev[key].length === 0) return prev;
       return { ...prev, [key]: [] };
@@ -122,24 +288,35 @@ const Questionnaire: React.FC = () => {
   const resetAll = useCallback(() => {
     setAnswers(initialAnswers());
     setCurrentStep(0);
+    setIsReview(false);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem(ANSWER_STORAGE_KEY);
+    }
     router.replace("/questionnaire", { scroll: false });
   }, [router]);
 
   useEffect(() => {
-    if (currentQuestion.type !== "single") return;
-    if (selectedValues.length === 0) return;
+    if (!settings.autoAdvanceSingle) return;
+    if (isReview) return;
+    const question = currentQuestion;
+    if (!question || question.type !== "single") return;
+    if (selectedCount === 0) return;
     const timer = window.setTimeout(() => {
       goNext();
     }, 420);
     return () => window.clearTimeout(timer);
-  }, [selectedValues, currentQuestion, goNext]);
+  }, [settings.autoAdvanceSingle, isReview, currentQuestion, selectedCount, goNext]);
 
-  const progressPercent = Math.round(((currentStep + 1) / totalSteps) * 100);
+  const progressPercent = isReview
+    ? 100
+    : Math.round(((currentStep + 1) / totalSteps) * 100);
   const progressPercentLabel = `${toPersianNumbers(String(progressPercent))}%`;
-  const progressLabel = `${TEXT.progressPrefix} ${toPersianNumbers(String(currentStep + 1))} ${TEXT.progressOf} ${toPersianNumbers(String(totalSteps))}`;
+  const progressLabel = isReview
+    ? TEXT.review.title
+    : `${TEXT.progressPrefix} ${toPersianNumbers(String(currentStep + 1))} ${TEXT.progressOf} ${toPersianNumbers(String(totalSteps))}`;
 
   const limitMessage = useMemo(() => {
-    if (currentQuestion.type !== "multiple" || typeof currentQuestion.maxSelections !== "number") {
+    if (!currentQuestion || currentQuestion.type !== "multiple" || typeof currentQuestion.maxSelections !== "number") {
       return null;
     }
     const max = currentQuestion.maxSelections;
@@ -154,64 +331,294 @@ const Questionnaire: React.FC = () => {
     return `${base} — می‌توانید ${toPersianNumbers(String(remaining))} گزینه دیگر برگزینید.`;
   }, [currentQuestion, selectedValues.length]);
 
-  const summaryChips = useMemo(() => {
-    const chips: string[] = [];
-    if (answers.moods.length) chips.push(`${TEXT.summaryLabels.moods}: ${separatorJoin(answers.moods)}`);
-    if (answers.moments.length) chips.push(`${TEXT.summaryLabels.moments}: ${separatorJoin(answers.moments)}`);
-    if (answers.times.length) chips.push(`${TEXT.summaryLabels.times}: ${separatorJoin(answers.times)}`);
-    if (answers.intensity.length) chips.push(`${TEXT.summaryLabels.intensity}: ${separatorJoin(answers.intensity)}`);
-    if (answers.styles.length) chips.push(`${TEXT.summaryLabels.styles}: ${separatorJoin(answers.styles)}`);
-    if (answers.noteLikes.length) chips.push(`${TEXT.summaryLabels.likes}: ${separatorJoin(answers.noteLikes)}`);
-    if (answers.noteDislikes.length) chips.push(`${TEXT.summaryLabels.dislikes}: ${separatorJoin(answers.noteDislikes)}`);
-    return chips.slice(0, SUMMARY_PREVIEW_LIMIT);
-  }, [answers]);
+  const stepIndexByKey = useMemo(() => {
+    const map = new Map<string, number>();
+    questions.forEach((question, index) => {
+      map.set(question.key, index);
+      if (isNotePreferenceQuestion(question)) {
+        map.set(question.pairedKey, index);
+      }
+    });
+    return map;
+  }, [questions]);
 
-  const canProceed = currentQuestion.optional || selectedValues.length > 0;
-  const helperText = currentQuestion.optional ? TEXT.optional : TEXT.requiredHint;
+  const summaryChips = useMemo(() => {
+    const chips: Array<{ text: string; stepIndex: number; active: boolean }> = [];
+    const maybePush = (text: string, key: keyof QuestionnaireAnswers) => {
+      const stepIndex = stepIndexByKey.get(key);
+      if (typeof stepIndex !== "number") return;
+      chips.push({
+        text,
+        stepIndex,
+        active: !isReview && stepIndex === currentStep,
+      });
+    };
+    if (sanitizedAnswers.moods.length) {
+      maybePush(`${TEXT.summaryLabels.moods}: ${separatorJoin(sanitizedAnswers.moods)}`, "moods");
+    }
+    if (sanitizedAnswers.moments.length) {
+      maybePush(`${TEXT.summaryLabels.moments}: ${separatorJoin(sanitizedAnswers.moments)}`, "moments");
+    }
+    if (sanitizedAnswers.times.length) {
+      maybePush(`${TEXT.summaryLabels.times}: ${separatorJoin(sanitizedAnswers.times)}`, "times");
+    }
+    if (sanitizedAnswers.intensity.length) {
+      maybePush(`${TEXT.summaryLabels.intensity}: ${separatorJoin(sanitizedAnswers.intensity)}`, "intensity");
+    }
+    if (sanitizedAnswers.styles.length) {
+      maybePush(`${TEXT.summaryLabels.styles}: ${separatorJoin(sanitizedAnswers.styles)}`, "styles");
+    }
+    if (sanitizedAnswers.noteLikes.length) {
+      maybePush(`${TEXT.summaryLabels.likes}: ${separatorJoin(sanitizedAnswers.noteLikes)}`, "noteLikes");
+    }
+    if (sanitizedAnswers.noteDislikes.length) {
+      maybePush(`${TEXT.summaryLabels.dislikes}: ${separatorJoin(sanitizedAnswers.noteDislikes)}`, "noteDislikes");
+    }
+    return chips.slice(0, SUMMARY_PREVIEW_LIMIT);
+  }, [currentStep, isReview, sanitizedAnswers, stepIndexByKey]);
+
+  const steps = useMemo(() => {
+    return questions.map((question, index) => {
+      const likes = sanitizedAnswers[question.key];
+      const dislikes = isNotePreferenceQuestion(question)
+        ? sanitizedAnswers[question.pairedKey]
+        : [];
+      const hasResponse = likes.length > 0 || dislikes.length > 0;
+      let status: "complete" | "current" | "upcoming" = "upcoming";
+      if (!isReview) {
+        if (index < currentStep) status = "complete";
+        else if (index === currentStep) status = "current";
+        else status = hasResponse ? "complete" : "upcoming";
+      } else {
+        status = hasResponse ? "complete" : "upcoming";
+      }
+      return {
+        title: question.title,
+        status,
+        optional: Boolean(question.optional),
+      };
+    });
+  }, [questions, sanitizedAnswers, isReview, currentStep]);
+
+  const noteHasSelection = sanitizedAnswers.noteLikes.length > 0 || sanitizedAnswers.noteDislikes.length > 0;
+  const canProceed = isReview
+    ? true
+    : currentQuestion
+      ? currentQuestion.optional || selectedValues.length > 0 || (isNoteStep && noteHasSelection)
+      : false;
+
+  const helperText = isReview
+    ? TEXT.review.helper
+    : currentQuestion
+      ? currentQuestion.optional
+        ? TEXT.optional
+        : TEXT.requiredHint
+      : undefined;
+
+  const showClearAction =
+    !isReview && currentQuestion && (isNoteStep ? noteHasSelection : selectedValues.length > 0);
 
   return (
     <KioskFrame>
-      <div className="relative flex h-full w-full items-center justify-center">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute left-16 top-12 h-48 w-48 rounded-full bg-amber-200/25 blur-[100px]" />
-          <div className="absolute right-10 bottom-16 h-56 w-56 rounded-full bg-white/20 blur-[120px]" />
-        </div>
-        <div className="relative flex h-full w-full max-w-[1200px] flex-col gap-6 rounded-3xl glass-deep px-6 py-8 shadow-2xl animate-blur-in">
-          <ProgressPanel
-            title={currentQuestion.title}
-            description={currentQuestion.description}
-            progressLabel={progressLabel}
-            progressPercent={progressPercent}
-            progressPercentLabel={progressPercentLabel}
-            summaryHeading={TEXT.summaryHeading}
-            summaryChips={summaryChips}
-            optional={Boolean(currentQuestion.optional)}
-            optionalLabel={TEXT.optional}
-            limitMessage={limitMessage}
-            onResetCurrent={resetCurrent}
-            onResetAll={resetAll}
-          />
+      <div className="relative flex min-h-full w-full items-center justify-center">
+        <div className="relative z-10 flex w-full max-w-[760px] flex-1 flex-col items-stretch justify-center px-5 py-6 sm:px-8">
+          <div className="relative flex max-h-[calc(100svh-3rem)] flex-1 flex-col gap-6 overflow-hidden rounded-[32px] border border-white/15 bg-white/10 p-6 shadow-strong backdrop-blur-2xl">
+            <header className="flex flex-col gap-4">
+              <div className="flex items-center justify-between text-xs text-muted">
+                <span>{progressLabel}</span>
+                <div className="flex items-center gap-2">
+                  {Boolean(!isReview && currentQuestion?.optional) && (
+                    <span className="rounded-full border border-white/25 px-2 py-0.5 text-[10px] text-[var(--color-accent)]">
+                      {TEXT.optional}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setIsOverviewOpen(true)}
+                    className="rounded-full border border-white/25 px-3 py-1 text-[11px] text-muted transition-colors hover:border-white/35 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent tap-highlight"
+                  >
+                    {TEXT.summaryHeading}
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <h1 className="m-0 text-2xl font-semibold text-[var(--color-foreground)]">
+                  {isReview ? TEXT.review.title : currentQuestion?.title ?? TEXT.review.title}
+                </h1>
+                <p className="m-0 text-sm text-muted">
+                  {isReview ? TEXT.review.description : currentQuestion?.description}
+                </p>
+                {!isReview && limitMessage && (
+                  <p className="m-0 text-xs text-[var(--color-accent)]">{limitMessage}</p>
+                )}
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 transition-[width] duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                  aria-hidden
+                />
+                <span className="sr-only">{progressPercentLabel}</span>
+              </div>
+            </header>
 
-          <section className="flex flex-1 items-center justify-center animate-scale-in animate-delay-2">
-            <OptionGrid
-              question={currentQuestion}
-              selectedValues={selectedValues}
-              onToggle={toggle}
-              emptyMessage={TEXT.noOptions}
-            />
-          </section>
+            <section className="flex flex-1 flex-col gap-4 overflow-hidden">
+              {!isReview && currentQuestion && !isNotePreferenceQuestion(currentQuestion) && (
+                <OptionGrid
+                  question={currentQuestion}
+                  selectedValues={selectedValues}
+                  onToggle={toggle}
+                  emptyMessage={TEXT.noOptions}
+                />
+              )}
 
-          <NavigationControls
-            onBack={goBack}
-            onNext={goNext}
-            disableBack={currentStep === 0}
-            disableNext={!canProceed}
-            backLabel={TEXT.back}
-            nextLabel={currentStep === totalSteps - 1 ? TEXT.finish : TEXT.next}
-            helperText={helperText}
-            isOptional={Boolean(currentQuestion.optional)}
-          />
+              {!isReview && currentQuestion && isNotePreferenceQuestion(currentQuestion) && (
+                <NotePreferenceGrid
+                  options={currentQuestion.options}
+                  likes={sanitizedAnswers.noteLikes}
+                  dislikes={sanitizedAnswers.noteDislikes}
+                  maxLikes={currentQuestion.maxSelections}
+                  maxDislikes={currentQuestion.maxDislikes}
+                  likeLabel={TEXT.notePreferences.like}
+                  dislikeLabel={TEXT.notePreferences.dislike}
+                  neutralLabel={TEXT.notePreferences.neutral}
+                  neutralDescription={TEXT.notePreferences.neutralDescription}
+                  onChange={updateNotePreference}
+                />
+              )}
+
+              {isReview && (
+                <ReviewStep
+                  answers={sanitizedAnswers}
+                  questions={questions}
+                  summaryLabels={TEXT.summaryLabels}
+                  emptyLabel={TEXT.review.empty}
+                  formatValues={separatorJoin}
+                  onEditStep={(index) => {
+                    setIsReview(false);
+                    setCurrentStep(index);
+                    setIsOverviewOpen(false);
+                  }}
+                />
+              )}
+            </section>
+
+            <div className="flex flex-col gap-3">
+              {showClearAction && (
+                <button
+                  type="button"
+                  onClick={resetCurrent}
+                  className="self-start rounded-full border border-white/20 px-3 py-1 text-[11px] text-muted transition-colors hover:border-white/30 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+                >
+                  پاک کردن انتخاب
+                </button>
+              )}
+              <NavigationControls
+                onBack={goBack}
+                onNext={goNext}
+                disableBack={isReview ? false : currentStep === 0}
+                disableNext={!canProceed}
+                backLabel={TEXT.back}
+                nextLabel={isReview ? TEXT.review.confirm : currentStep === totalSteps - 1 ? TEXT.finish : TEXT.next}
+                helperText={helperText ?? undefined}
+                isOptional={Boolean(!isReview && currentQuestion?.optional)}
+              />
+            </div>
+          </div>
         </div>
+
+        {isOverviewOpen && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/35 px-4 py-6 backdrop-blur-sm">
+            <div className="w-full max-w-[640px] rounded-[28px] border border-white/40 bg-white/95 p-6 text-right text-[var(--accent-contrast)] shadow-strong">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="m-0 text-xs font-semibold text-[var(--color-accent-strong)]">{TEXT.summaryHeading}</p>
+                  <p className="m-0 text-[11px] text-[var(--foreground-muted)]">
+                    {TEXT.review.description}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsOverviewOpen(false)}
+                  className="rounded-full border border-black/10 px-3 py-1 text-xs text-[var(--accent-contrast)] transition-colors hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
+                >
+                  بستن
+                </button>
+              </div>
+
+              {summaryChips.length > 0 && (
+                <div className="mt-4 flex flex-wrap justify-end gap-2 text-[11px] text-[var(--foreground-muted)]">
+                  {summaryChips.map((chip) => (
+                    <span
+                      key={`${chip.stepIndex}-${chip.text}`}
+                      className={`rounded-full border px-3 py-1 ${chip.active ? "border-[var(--color-accent)] text-[var(--color-accent-strong)]" : "border-black/10"}`}
+                    >
+                      {chip.text}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-5 grid gap-2 text-[13px]">
+                {steps.map((step, index) => (
+                  <button
+                    key={`${step.title}-${index}`}
+                    type="button"
+                    onClick={() => {
+                      setIsReview(false);
+                      setCurrentStep(index);
+                      setIsOverviewOpen(false);
+                    }}
+                    className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-right transition-colors ${
+                      step.status === "current"
+                        ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent-strong)]"
+                        : step.status === "complete"
+                          ? "border-emerald-200/60 bg-emerald-100/20 text-[var(--accent-contrast)]"
+                          : "border-black/10 bg-white"
+                    }`}
+                  >
+                    <span>{step.title}</span>
+                    {step.optional && <span className="text-[10px] text-[var(--foreground-subtle)]">{TEXT.optional}</span>}
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-5 flex flex-wrap items-center justify-between gap-3 text-xs text-[var(--foreground-muted)]">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={settings.autoAdvanceSingle}
+                  onClick={() =>
+                    setSettings((prev) => ({ ...prev, autoAdvanceSingle: !prev.autoAdvanceSingle }))
+                  }
+                  className={`rounded-full border px-3 py-1 transition-colors ${
+                    settings.autoAdvanceSingle
+                      ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent-strong)]"
+                      : "border-black/10 bg-white"
+                  }`}
+                >
+                  {TEXT.settings.autoAdvance}
+                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={resetCurrent}
+                    className="rounded-full border border-black/10 px-3 py-1 transition-colors hover:bg-black/5"
+                  >
+                    پاک کردن این مرحله
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetAll}
+                    className="rounded-full border border-black/10 px-3 py-1 transition-colors hover:bg-black/5"
+                  >
+                    شروع دوباره
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </KioskFrame>
   );

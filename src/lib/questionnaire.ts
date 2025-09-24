@@ -21,7 +21,7 @@ export interface QuestionnaireAnswers {
   noteDislikes: string[];
 }
 
-export interface QuestionDefinition {
+interface BaseQuestionDefinition {
   title: string;
   description?: string;
   type: QuestionType;
@@ -29,7 +29,22 @@ export interface QuestionDefinition {
   key: keyof QuestionnaireAnswers;
   optional?: boolean;
   maxSelections?: number;
+  variant?: "standard";
 }
+
+export interface NotePreferenceQuestionDefinition
+  extends Omit<BaseQuestionDefinition, "variant" | "type"> {
+  type: "multiple";
+  pairedKey: keyof QuestionnaireAnswers;
+  maxDislikes?: number;
+  variant: "notePreference";
+}
+
+export type QuestionDefinition = BaseQuestionDefinition | NotePreferenceQuestionDefinition;
+
+export const isNotePreferenceQuestion = (
+  question: QuestionDefinition
+): question is NotePreferenceQuestionDefinition => question.variant === "notePreference";
 
 export const TEXT = {
   progressPrefix: "سوال",
@@ -39,6 +54,13 @@ export const TEXT = {
   back: "بازگشت",
   next: "بعدی",
   finish: "مشاهده پیشنهادات",
+  review: {
+    title: "بازبینی پاسخ‌ها",
+    description: "پیش از دیدن پیشنهادها، پاسخ هر سوال را بررسی یا اصلاح کنید.",
+    helper: "برای تغییر پاسخ، گزینهٔ ویرایش را انتخاب کنید.",
+    confirm: "مشاهده پیشنهادها",
+    empty: "پاسخی ثبت نشده است.",
+  },
   noOptions: "موردی در دسترس نیست.",
   summaryHeading: "گزینه‌های انتخابی",
   separator: "، ",
@@ -50,6 +72,15 @@ export const TEXT = {
     styles: "سبک",
     likes: "نُت‌های محبوب",
     dislikes: "نُت‌های نامطلوب",
+  },
+  notePreferences: {
+    like: "دوست دارم",
+    dislike: "اجتناب",
+    neutral: "خنثی",
+    neutralDescription: "اگر مطمئن نیستید، خنثی را انتخاب کنید.",
+  },
+  settings: {
+    autoAdvance: "پیشروی خودکار پس از انتخاب گزینهٔ تکی",
   },
   questions: {
     moods: {
@@ -71,12 +102,8 @@ export const TEXT = {
       title: "سبک عطر مورد علاقه شما چیست؟",
     },
     likes: {
-      title: "به کدام دسته از نُت‌ها علاقه دارید؟",
-      description: "اختیاری؛ تا سه مورد.",
-    },
-    dislikes: {
-      title: "از کدام دسته از نُت‌ها خوشتان نمی‌آید؟",
-      description: "اختیاری؛ تا سه مورد.",
+      title: "ترجیحات خود درباره نُت‌ها را مشخص کنید",
+      description: "می‌توانید برای هر گروه نُت مشخص کنید آن را دوست دارید یا باید از آن دوری شود.",
     },
   },
 };
@@ -125,19 +152,21 @@ export const QUESTION_CONFIG: QuestionDefinition[] = [
     description: TEXT.questions.likes.description,
     optional: true,
     maxSelections: 3,
-  },
-  {
-    key: "noteDislikes",
-    type: "multiple",
-    options: NOTE_CHOICES,
-    title: TEXT.questions.dislikes.title,
-    description: TEXT.questions.dislikes.description,
-    optional: true,
-    maxSelections: 3,
+    pairedKey: "noteDislikes",
+    maxDislikes: 3,
+    variant: "notePreference",
   },
 ];
 
-export const SUMMARY_PREVIEW_LIMIT = 4;
+export const QUESTION_KEYS: Array<keyof QuestionnaireAnswers> = Array.from(
+  new Set(
+    QUESTION_CONFIG.flatMap((question) =>
+      isNotePreferenceQuestion(question) ? [question.key, question.pairedKey] : [question.key]
+    )
+  )
+);
+
+export const SUMMARY_PREVIEW_LIMIT = 5;
 
 export const initialAnswers = (): QuestionnaireAnswers => ({
   moods: [],
@@ -148,6 +177,39 @@ export const initialAnswers = (): QuestionnaireAnswers => ({
   noteLikes: [],
   noteDislikes: [],
 });
+
+const sanitizeList = (
+  value: unknown,
+  options: Choice[],
+  limit?: number,
+  single = false
+): string[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const optionValues = new Set(options.map((option) => option.value));
+  const seen = new Set<string>();
+  const cleaned: string[] = [];
+
+  value.forEach((item) => {
+    if (typeof item !== "string") return;
+    const trimmed = item.trim();
+    if (!trimmed || !optionValues.has(trimmed) || seen.has(trimmed)) return;
+    seen.add(trimmed);
+    cleaned.push(trimmed);
+  });
+
+  if (single) {
+    return cleaned.slice(0, 1);
+  }
+
+  if (typeof limit === "number") {
+    return cleaned.slice(0, Math.max(limit, 0));
+  }
+
+  return cleaned;
+};
 
 export const separatorJoin = (values: string[]) =>
   values
@@ -164,40 +226,25 @@ export const sanitizeAnswers = (
     return base;
   }
 
-  const unique = <T extends string>(items: T[]): T[] => {
-    const seen = new Set<T>();
-    const ordered: T[] = [];
-    items.forEach((item) => {
-      if (!seen.has(item)) {
-        ordered.push(item);
-        seen.add(item);
-      }
-    });
-    return ordered;
-  };
-
   for (const question of QUESTION_CONFIG) {
     const raw = input[question.key];
-    if (!Array.isArray(raw)) {
-      continue;
-    }
-
-    const optionValues = new Set(question.options.map((option) => option.value));
-    const cleaned = unique(
-      raw
-        .map((value) => (typeof value === "string" ? value.trim() : ""))
-        .filter((value) => value.length > 0 && optionValues.has(value))
+    const sanitized = sanitizeList(
+      raw,
+      question.options,
+      question.maxSelections,
+      question.type === "single"
     );
+    base[question.key] = sanitized;
 
-    if (question.type === "single") {
-      base[question.key] = cleaned.slice(0, 1);
-      continue;
-    }
-
-    if (typeof question.maxSelections === "number") {
-      base[question.key] = cleaned.slice(0, question.maxSelections);
-    } else {
-      base[question.key] = cleaned;
+    if (isNotePreferenceQuestion(question)) {
+      const dislikeRaw = input[question.pairedKey];
+      const dislikeSanitized = sanitizeList(
+        dislikeRaw,
+        question.options,
+        question.maxDislikes ?? question.maxSelections,
+        false
+      ).filter((value) => !sanitized.includes(value));
+      base[question.pairedKey] = dislikeSanitized;
     }
   }
 
@@ -208,23 +255,18 @@ export const areAnswersEqual = (
   a: QuestionnaireAnswers,
   b: QuestionnaireAnswers
 ) => {
-  return (
-    QUESTION_CONFIG.every((question) => {
-      const key = question.key;
-      const left = a[key];
-      const right = b[key];
-      return (
-        left.length === right.length &&
-        left.every((value, index) => value === right[index])
-      );
-    })
-  );
+  return QUESTION_KEYS.every((key) => {
+    const left = a[key];
+    const right = b[key];
+    return left.length === right.length && left.every((value, index) => value === right[index]);
+  });
 };
 
 export const firstIncompleteStep = (answers: QuestionnaireAnswers) => {
   const index = QUESTION_CONFIG.findIndex((question) => {
+    if (question.optional) return false;
     const selected = answers[question.key];
-    return !question.optional && selected.length === 0;
+    return selected.length === 0;
   });
   return index === -1 ? 0 : index;
 };

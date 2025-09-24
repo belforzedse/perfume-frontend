@@ -3,7 +3,6 @@
 import React from "react";
 import Image from "next/image";
 
-import TouchRipple from "@/components/TouchRipple";
 import type { MatchQuality, RankedPerfume } from "@/lib/recommendation-engine";
 
 export type CompactMode = "normal" | "tight" | "ultra";
@@ -82,25 +81,31 @@ const MatchCard: React.FC<MatchCardProps> = ({
   const visibleReasons = reasons.slice(0, reasonLimit);
   const notePreview = perfume.allNotes.slice(0, compact === "ultra" ? 2 : 4);
 
-  const articleRef = React.useRef<HTMLDivElement>(null);
-  const emitRipple = React.useCallback((event: React.PointerEvent<HTMLDivElement>) => {
-    const node = articleRef.current;
-    if (!node) return;
-    const rect = node.getBoundingClientRect();
-    const ripple = (TouchRipple as unknown as { emit?: (x: number, y: number) => void }).emit;
-    ripple?.(event.clientX - rect.left, event.clientY - rect.top);
+  const [expanded, setExpanded] = React.useState(false);
+  const toggleExpanded = React.useCallback(() => {
+    setExpanded((prev) => !prev);
   }, []);
+
+  const handleKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleExpanded();
+      }
+    },
+    [toggleExpanded]
+  );
 
   return (
     <article
-      ref={articleRef}
       role="button"
       tabIndex={0}
-      onPointerDown={emitRipple}
+      onClick={toggleExpanded}
+      onKeyDown={handleKeyDown}
+      aria-expanded={expanded}
       aria-label={`${title ?? ""} - درصد تطابق ${matchPercentLabel}`}
-      className="interactive-card glass-card relative flex h-full flex-col justify-between rounded-2xl p-4 text-right animate-fade-in-up tap-highlight touch-target"
+      className="interactive-card glass-card relative flex h-full flex-col justify-between rounded-2xl p-4 text-right tap-highlight touch-target focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
     >
-      <TouchRipple />
       <header className="flex items-start justify-between">
         <span className="rounded-full bg-soft px-3 py-1 text-xs font-semibold text-muted">{order}</span>
         <div className="text-right">
@@ -177,6 +182,19 @@ const MatchCard: React.FC<MatchCardProps> = ({
               {note}
             </span>
           ))}
+        </div>
+      )}
+
+      {expanded && perfume.allNotes.length > 0 && (
+        <div className="mt-3 rounded-2xl border border-white/12 bg-white/8 p-3 text-[11px] text-muted">
+          <p className="m-0 text-[11px] text-[var(--color-foreground)]">نُت‌های کامل:</p>
+          <div className="mt-2 flex flex-wrap justify-end gap-2">
+            {perfume.allNotes.map((note, index) => (
+              <span key={index} className="rounded-full bg-white/10 px-2 py-1">
+                {note}
+              </span>
+            ))}
+          </div>
         </div>
       )}
     </article>
