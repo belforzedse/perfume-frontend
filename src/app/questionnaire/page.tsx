@@ -9,6 +9,9 @@ import NotePreferenceGrid, {
   type NotePreferenceValue,
 } from "@/components/questionnaire/NotePreferenceGrid";
 import OptionGrid from "@/components/questionnaire/OptionGrid";
+import ProgressPanel, {
+  type SummaryChip,
+} from "@/components/questionnaire/ProgressPanel";
 import ReviewStep from "@/components/questionnaire/ReviewStep";
 import { toPersianNumbers } from "@/lib/api";
 import {
@@ -342,8 +345,8 @@ const Questionnaire: React.FC = () => {
     return map;
   }, [questions]);
 
-  const summaryChips = useMemo(() => {
-    const chips: Array<{ text: string; stepIndex: number; active: boolean }> = [];
+  const summaryChips: SummaryChip[] = useMemo(() => {
+    const chips: SummaryChip[] = [];
     const maybePush = (text: string, key: keyof QuestionnaireAnswers) => {
       const stepIndex = stepIndexByKey.get(key);
       if (typeof stepIndex !== "number") return;
@@ -377,6 +380,15 @@ const Questionnaire: React.FC = () => {
     return chips.slice(0, SUMMARY_PREVIEW_LIMIT);
   }, [currentStep, isReview, sanitizedAnswers, stepIndexByKey]);
 
+  const handleSelectStep = useCallback(
+    (stepIndex: number) => {
+      setIsReview(false);
+      setCurrentStep(stepIndex);
+      setIsOverviewOpen(false);
+    },
+    [setCurrentStep, setIsOverviewOpen, setIsReview]
+  );
+
   const steps = useMemo(() => {
     return questions.map((question, index) => {
       const likes = sanitizedAnswers[question.key];
@@ -401,6 +413,10 @@ const Questionnaire: React.FC = () => {
   }, [questions, sanitizedAnswers, isReview, currentStep]);
 
   const noteHasSelection = sanitizedAnswers.noteLikes.length > 0 || sanitizedAnswers.noteDislikes.length > 0;
+  const hasAnyAnswer = useMemo(
+    () => QUESTION_KEYS.some((key) => sanitizedAnswers[key].length > 0),
+    [sanitizedAnswers]
+  );
   const canProceed = isReview
     ? true
     : currentQuestion
@@ -415,7 +431,7 @@ const Questionnaire: React.FC = () => {
         : TEXT.requiredHint
       : undefined;
 
-  const showClearAction =
+  const canResetCurrent =
     !isReview && currentQuestion && (isNoteStep ? noteHasSelection : selectedValues.length > 0);
 
   return (
@@ -423,44 +439,26 @@ const Questionnaire: React.FC = () => {
       <div className="relative flex min-h-full w-full items-center justify-center">
         <div className="relative z-10 flex w-full max-w-[760px] flex-1 flex-col items-stretch justify-center px-5 py-6 sm:px-8">
           <div className="relative flex max-h-[calc(100svh-3rem)] flex-1 flex-col gap-6 overflow-hidden rounded-[32px] border border-white/15 bg-white/10 p-6 shadow-strong backdrop-blur-2xl">
-            <header className="flex flex-col gap-4">
-              <div className="flex items-center justify-between text-xs text-muted">
-                <span>{progressLabel}</span>
-                <div className="flex items-center gap-2">
-                  {Boolean(!isReview && currentQuestion?.optional) && (
-                    <span className="rounded-full border border-white/25 px-2 py-0.5 text-[10px] text-[var(--color-accent)]">
-                      {TEXT.optional}
-                    </span>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIsOverviewOpen(true)}
-                    className="rounded-full border border-white/25 px-3 py-1 text-[11px] text-muted transition-colors hover:border-white/35 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent tap-highlight"
-                  >
-                    {TEXT.summaryHeading}
-                  </button>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <h1 className="m-0 text-2xl font-semibold text-[var(--color-foreground)]">
-                  {isReview ? TEXT.review.title : currentQuestion?.title ?? TEXT.review.title}
-                </h1>
-                <p className="m-0 text-sm text-muted">
-                  {isReview ? TEXT.review.description : currentQuestion?.description}
-                </p>
-                {!isReview && limitMessage && (
-                  <p className="m-0 text-xs text-[var(--color-accent)]">{limitMessage}</p>
-                )}
-              </div>
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/15">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 transition-[width] duration-500"
-                  style={{ width: `${progressPercent}%` }}
-                  aria-hidden
-                />
-                <span className="sr-only">{progressPercentLabel}</span>
-              </div>
-            </header>
+            <ProgressPanel
+              isReview={isReview}
+              progressLabel={progressLabel}
+              progressPercent={progressPercent}
+              progressPercentLabel={progressPercentLabel}
+              title={isReview ? TEXT.review.title : currentQuestion?.title ?? TEXT.review.title}
+              description={isReview ? TEXT.review.description : currentQuestion?.description ?? undefined}
+              limitMessage={!isReview ? limitMessage : null}
+              optional={Boolean(!isReview && currentQuestion?.optional)}
+              optionalLabel={TEXT.optional}
+              summaryHeading={TEXT.summaryHeading}
+              summaryButtonLabel={TEXT.summaryHeading}
+              summaryChips={summaryChips}
+              onSummaryClick={() => setIsOverviewOpen(true)}
+              onSelectSummaryChip={summaryChips.length > 0 ? handleSelectStep : undefined}
+              onResetCurrent={canResetCurrent ? resetCurrent : undefined}
+              resetCurrentLabel={TEXT.clearStep}
+              onResetAll={hasAnyAnswer ? resetAll : undefined}
+              resetAllLabel={TEXT.restart}
+            />
 
             <section className="flex flex-1 flex-col gap-4 overflow-hidden">
               {!isReview && currentQuestion && !isNotePreferenceQuestion(currentQuestion) && (
@@ -504,15 +502,6 @@ const Questionnaire: React.FC = () => {
             </section>
 
             <div className="flex flex-col gap-3">
-              {showClearAction && (
-                <button
-                  type="button"
-                  onClick={resetCurrent}
-                  className="self-start rounded-full border border-white/20 px-3 py-1 text-[11px] text-muted transition-colors hover:border-white/30 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-                >
-                  پاک کردن انتخاب
-                </button>
-              )}
               <NavigationControls
                 onBack={goBack}
                 onNext={goNext}
@@ -542,19 +531,25 @@ const Questionnaire: React.FC = () => {
                   onClick={() => setIsOverviewOpen(false)}
                   className="rounded-full border border-black/10 px-3 py-1 text-xs text-[var(--accent-contrast)] transition-colors hover:bg-black/5 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
                 >
-                  بستن
+                  {TEXT.close}
                 </button>
               </div>
 
               {summaryChips.length > 0 && (
                 <div className="mt-4 flex flex-wrap justify-end gap-2 text-[11px] text-[var(--foreground-muted)]">
                   {summaryChips.map((chip) => (
-                    <span
+                    <button
                       key={`${chip.stepIndex}-${chip.text}`}
-                      className={`rounded-full border px-3 py-1 ${chip.active ? "border-[var(--color-accent)] text-[var(--color-accent-strong)]" : "border-black/10"}`}
+                      type="button"
+                      onClick={() => handleSelectStep(chip.stepIndex)}
+                      className={`rounded-full border px-3 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-white ${
+                        chip.active
+                          ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent-strong)]"
+                          : "border-black/10 bg-white hover:border-black/20 hover:bg-black/5"
+                      }`}
                     >
                       {chip.text}
-                    </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -564,11 +559,7 @@ const Questionnaire: React.FC = () => {
                   <button
                     key={`${step.title}-${index}`}
                     type="button"
-                    onClick={() => {
-                      setIsReview(false);
-                      setCurrentStep(index);
-                      setIsOverviewOpen(false);
-                    }}
+                    onClick={() => handleSelectStep(index)}
                     className={`flex items-center justify-between rounded-2xl border px-3 py-2 text-right transition-colors ${
                       step.status === "current"
                         ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent-strong)]"
@@ -603,16 +594,26 @@ const Questionnaire: React.FC = () => {
                   <button
                     type="button"
                     onClick={resetCurrent}
-                    className="rounded-full border border-black/10 px-3 py-1 transition-colors hover:bg-black/5"
+                    disabled={!canResetCurrent}
+                    className={`rounded-full border border-black/10 px-3 py-1 transition-colors ${
+                      canResetCurrent
+                        ? "hover:bg-black/5"
+                        : "cursor-not-allowed opacity-50"
+                    }`}
                   >
-                    پاک کردن این مرحله
+                    {TEXT.clearStep}
                   </button>
                   <button
                     type="button"
                     onClick={resetAll}
-                    className="rounded-full border border-black/10 px-3 py-1 transition-colors hover:bg-black/5"
+                    disabled={!hasAnyAnswer}
+                    className={`rounded-full border border-black/10 px-3 py-1 transition-colors ${
+                      hasAnyAnswer
+                        ? "hover:bg-black/5"
+                        : "cursor-not-allowed opacity-50"
+                    }`}
                   >
-                    شروع دوباره
+                    {TEXT.restart}
                   </button>
                 </div>
               </div>

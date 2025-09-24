@@ -63,6 +63,9 @@ export const TEXT = {
   },
   noOptions: "موردی در دسترس نیست.",
   summaryHeading: "گزینه‌های انتخابی",
+  clearStep: "پاک کردن این مرحله",
+  restart: "شروع دوباره",
+  close: "بستن",
   separator: "، ",
   summaryLabels: {
     moods: "حال‌وهوا",
