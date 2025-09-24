@@ -938,3 +938,46 @@ input.slider-thumb-accent::-moz-range-track {
     animation: button-ripple 0.6s ease-out;
   }
 }
+
+@layer components {
+  .interactive-card {
+    transition: transform 140ms ease, box-shadow 180ms ease, background 180ms ease;
+    will-change: transform;
+  }
+  .interactive-card:active {
+    transform: translateY(1px) scale(0.98);
+    box-shadow: 0 6px 18px rgba(var(--shadow-color) / 0.12);
+  }
+
+  /* Deeper liquid-glass container */
+  .glass-deep {
+    backdrop-filter: blur(48px);
+    background: linear-gradient(180deg, rgba(255,255,255,0.16), rgba(255,255,255,0.10));
+    border: 1px solid rgba(255,255,255,0.28);
+    box-shadow:
+      0 24px 60px rgba(var(--shadow-color) / 0.16),
+      inset 0 1px 0 rgba(255,255,255,0.35),
+      inset 0 -1px 0 rgba(255,255,255,0.08);
+    position: relative;
+  }
+  .glass-deep::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    background: radial-gradient(120% 120% at 80% 0%, rgba(255,255,255,0.18), transparent 50%),
+                radial-gradient(120% 120% at 0% 100%, rgba(201,147,83,0.12), transparent 50%);
+    opacity: .6;
+  }
+
+  /* Width-only grow for CTA */
+  .btn-grow-x {
+    transition: transform 160ms ease, box-shadow 160ms ease;
+  }
+  .btn-grow-x:hover,
+  .btn-grow-x:active,
+  .btn-grow-x:focus-visible {
+    transform: scaleX(1.05);
+  }
+}
