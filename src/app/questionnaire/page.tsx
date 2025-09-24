@@ -1,158 +1,144 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toPersianNumbers } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import KioskFrame from "@/components/KioskFrame";
 import {
-  Choice,
-  INTENSITY_CHOICES,
-  MOMENT_CHOICES,
-  MOOD_CHOICES,
-  NOTE_CHOICES,
-  STYLE_CHOICES,
-  TIME_CHOICES,
-} from "@/lib/kiosk-options";
-
-interface QuestionnaireAnswers {
-  moods: string[];
-  moments: string[];
-  times: string[];
-  intensity: string[];
-  styles: string[];
-  noteLikes: string[];
-  noteDislikes: string[];
-}
-
-type QuestionType = "multiple" | "single";
-
-interface QuestionDefinition {
-  title: string;
-  description?: string;
-  type: QuestionType;
-  options: Choice[];
-  key: keyof QuestionnaireAnswers;
-  optional?: boolean;
-  maxSelections?: number;
-}
+  QUESTION_FLOW,
+  QuestionnaireAnswers,
+  QuestionDefinition,
+  TOTAL_QUESTIONS,
+  createInitialAnswers,
+  serializeAnswers,
+} from "@/lib/questionnaire";
 
 const BTN_BASE =
   "rounded-3xl border-2 px-4 py-5 text-center text-lg font-semibold transition-transform duration-150 active:scale-95 focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)] tap-highlight touch-target touch-feedback";
 
-const initialAnswers = (): QuestionnaireAnswers => ({
-  moods: [],
-  moments: [],
-  times: [],
-  intensity: [],
-  styles: [],
-  noteLikes: [],
-  noteDislikes: [],
-});
+const formatNumber = (value: number) => toPersianNumbers(String(value));
+
+const toggleSelection = (
+  previous: QuestionnaireAnswers,
+  question: QuestionDefinition,
+  value: string
+): { next: QuestionnaireAnswers; limited: boolean } => {
+  const key = question.key;
+  const currentValues = previous[key];
+  const isSelected = currentValues.includes(value);
+
+  if (question.type === "single") {
+    return {
+      next: { ...previous, [key]: isSelected ? [] : [value] },
+      limited: false,
+    };
+  }
+
+  if (
+    !isSelected &&
+    typeof question.maxSelections === "number" &&
+    currentValues.length >= question.maxSelections
+  ) {
+    return { next: previous, limited: true };
+  }
+
+  const nextValues = isSelected
+    ? currentValues.filter((item) => item !== value)
+    : [...currentValues, value];
+
+  return {
+    next: { ...previous, [key]: nextValues },
+    limited: false,
+  };
+};
+
+const buildHelperText = (
+  question: QuestionDefinition,
+  selectedCount: number,
+  limitReached: boolean,
+  limitMessage: string | null
+) => {
+  if (limitMessage) return limitMessage;
+
+  if (question.type === "multiple" && question.maxSelections) {
+    const limit = formatNumber(question.maxSelections);
+    if (selectedCount === 0) {
+      return question.optional
+        ? `می‌توانید حداکثر ${limit} مورد را به صورت اختیاری انتخاب کنید.`
+        : `برای ادامه بین ۱ تا ${limit} گزینه انتخاب کنید.`;
+    }
+    const selected = formatNumber(selectedCount);
+    return limitReached
+      ? `حداکثر ${limit} مورد انتخاب شده است.`
+      : `انتخاب شده: ${selected} از ${limit}`;
+  }
+
+  if (selectedCount === 0) {
+    return question.optional
+      ? "این سوال اختیاری است."
+      : "برای ادامه لطفاً یک گزینه را انتخاب کنید.";
+  }
+
+  return "آماده ادامه هستید.";
+};
 
 export default function Questionnaire() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<QuestionnaireAnswers>(initialAnswers);
+  const [answers, setAnswers] = useState<QuestionnaireAnswers>(() => createInitialAnswers());
+  const [limitMessage, setLimitMessage] = useState<string | null>(null);
 
-  const questions: QuestionDefinition[] = useMemo(
-    () => [
-      {
-        title: "حال‌وهواهای مورد علاقه شما چیست؟",
-        description: "حداکثر دو مورد را انتخاب کنید.",
-        type: "multiple",
-        options: MOOD_CHOICES,
-        key: "moods",
-        maxSelections: 2,
-      },
-      {
-        title: "این عطر را بیشتر برای چه موقعیت‌هایی می‌خواهید؟",
-        description: "حداکثر سه مورد را انتخاب کنید.",
-        type: "multiple",
-        options: MOMENT_CHOICES,
-        key: "moments",
-        maxSelections: 3,
-      },
-      {
-        title: "بیشتر برای چه زمانی از روز؟",
-        type: "single",
-        options: TIME_CHOICES,
-        key: "times",
-      },
-      {
-        title: "شدت پخش بو را ترجیح می‌دهید؟",
-        description: "از ملایم تا قوی.",
-        type: "single",
-        options: INTENSITY_CHOICES,
-        key: "intensity",
-      },
-      {
-        title: "سبک عطر مورد علاقه شما چیست؟",
-        type: "single",
-        options: STYLE_CHOICES,
-        key: "styles",
-      },
-      {
-        title: "به کدام دسته از نُت‌ها علاقه دارید؟",
-        description: "اختیاری؛ تا سه مورد.",
-        type: "multiple",
-        options: NOTE_CHOICES,
-        key: "noteLikes",
-        optional: true,
-        maxSelections: 3,
-      },
-      {
-        title: "از کدام دسته از نُت‌ها خوشتان نمی‌آید؟",
-        description: "اختیاری؛ تا سه مورد.",
-        type: "multiple",
-        options: NOTE_CHOICES,
-        key: "noteDislikes",
-        optional: true,
-        maxSelections: 3,
-      },
-    ],
-    []
-  );
-
+  const questions = QUESTION_FLOW;
   const currentQuestion = questions[currentStep];
 
-  const toggle = (value: string) => {
-    setAnswers((prev) => {
-      const key = currentQuestion.key;
-      const selected = prev[key];
-      const isSelected = selected.includes(value);
-      const atLimit =
-        !isSelected &&
-        typeof currentQuestion.maxSelections === "number" &&
-        selected.length >= currentQuestion.maxSelections;
+  useEffect(() => {
+    setLimitMessage(null);
+  }, [currentQuestion]);
 
-      if (currentQuestion.type === "single") {
-        return { ...prev, [key]: isSelected ? [] : [value] };
-      }
-      if (atLimit) return prev;
-      return {
-        ...prev,
-        [key]: isSelected
-          ? selected.filter((v) => v !== value)
-          : [...selected, value],
-      };
-    });
-  };
+  const toggle = useCallback(
+    (value: string) => {
+      setAnswers((prev) => {
+        const { next, limited } = toggleSelection(prev, currentQuestion, value);
+        if (limited) {
+          if (currentQuestion.maxSelections) {
+            const limit = formatNumber(currentQuestion.maxSelections);
+            setLimitMessage(`حداکثر ${limit} انتخاب مجاز است.`);
+          }
+          return prev;
+        }
+        setLimitMessage(null);
+        return next;
+      });
+    },
+    [currentQuestion]
+  );
 
   const next = () => {
     if (currentStep < questions.length - 1) {
       setCurrentStep((s) => s + 1);
     } else {
-      const qs = new URLSearchParams({ answers: JSON.stringify(answers) });
-      router.push(`/recommendations?${qs}`);
+      const qs = new URLSearchParams({ answers: serializeAnswers(answers) });
+      router.push(`/recommendations?${qs.toString()}`);
     }
   };
 
   const back = () => currentStep > 0 && setCurrentStep((s) => s - 1);
 
-  const canProceed = () =>
-    currentQuestion.optional || answers[currentQuestion.key].length > 0;
+  const selectedCount = answers[currentQuestion.key].length;
+  const limitReached = Boolean(
+    currentQuestion.maxSelections && selectedCount >= currentQuestion.maxSelections
+  );
 
-  const progress = Math.round(((currentStep + 1) / questions.length) * 100);
+  const canProceed = currentQuestion.optional || selectedCount > 0;
+
+  const helperText = buildHelperText(
+    currentQuestion,
+    selectedCount,
+    limitReached,
+    limitMessage
+  );
+
+  const progress = Math.round(((currentStep + 1) / TOTAL_QUESTIONS) * 100);
 
   return (
     <KioskFrame>
@@ -161,7 +147,7 @@ export default function Questionnaire() {
           <header className="flex items-center justify-between animate-slide-in-right">
             <div className="space-y-2 text-right">
               <p className="m-0 text-xs text-muted" aria-live="polite">
-                سوال {toPersianNumbers(String(currentStep + 1))} از {toPersianNumbers(String(questions.length))}
+                سوال {formatNumber(currentStep + 1)} از {formatNumber(TOTAL_QUESTIONS)}
               </p>
               <h1 className="text-3xl font-semibold text-[var(--color-foreground)]">
                 {currentQuestion.title}
@@ -216,8 +202,8 @@ export default function Questionnaire() {
             <button onClick={back} disabled={currentStep === 0} className="btn-ghost w-32 tap-highlight touch-target touch-feedback">
               بازگشت
             </button>
-            <span className="text-xs text-muted">
-              {currentQuestion.optional ? "اختیاری" : "برای ادامه لطفاً یک گزینه را انتخاب کنید."}
+            <span className="text-xs text-muted" aria-live="polite">
+              {helperText}
             </span>
             <button onClick={next} disabled={!canProceed()} className="btn w-32 tap-highlight touch-target touch-feedback">
               {currentStep === questions.length - 1 ? "مشاهده پیشنهادها" : "بعدی"}
