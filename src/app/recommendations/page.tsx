@@ -118,7 +118,9 @@ const RecommendationsContent: React.FC = () => {
   const [compact, setCompact] = useState<CompactMode>("normal");
   const [error, setError] = useState<string | null>(null);
   const [retryToken, setRetryToken] = useState(0);
+
   const [matchPage, setMatchPage] = useState(0);
+
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -164,6 +166,7 @@ const RecommendationsContent: React.FC = () => {
     fetchRecommendations();
   }, [fetchRecommendations, retryToken]);
 
+
   useEffect(() => {
     setMatchPage(0);
   }, [recommendations.length]);
@@ -185,6 +188,8 @@ const RecommendationsContent: React.FC = () => {
       ),
     [matchPage, matchesPerPage, recommendations]
   );
+
+
 
   const summaryChips = useMemo(() => buildSummary(answers), [answers]);
 
@@ -233,6 +238,7 @@ const RecommendationsContent: React.FC = () => {
   }
 
   return (
+
     <KioskFrame>
       <div className="flex min-h-full w-full items-center justify-center">
         <div className="relative z-10 flex w-full max-w-[760px] flex-col gap-6 px-5 py-6 sm:px-8">
@@ -361,6 +367,7 @@ const RecommendationsContent: React.FC = () => {
               ) : (
                 <div className="flex items-center justify-center rounded-3xl border border-white/12 bg-white/6 p-6 text-sm text-muted">
                   {TEXT.empty}
+
                 </div>
               )}
             </section>

@@ -2,19 +2,22 @@
 
 import React from "react";
 
+
 export interface SummaryChip {
   text: string;
   stepIndex: number;
   active?: boolean;
-}
+
 
 interface ProgressPanelProps {
   isReview?: boolean;
   progressLabel: string;
   progressPercent: number;
   progressPercentLabel: string;
+
   title: string;
   description?: string | null;
+
   limitMessage?: string | null;
   optional?: boolean;
   optionalLabel?: string;
@@ -25,8 +28,10 @@ interface ProgressPanelProps {
   onSelectSummaryChip?: (stepIndex: number) => void;
   onResetCurrent?: () => void;
   onResetAll?: () => void;
+
   resetCurrentLabel?: string;
   resetAllLabel?: string;
+
 }
 
 const ProgressPanel: React.FC<ProgressPanelProps> = ({
@@ -46,6 +51,7 @@ const ProgressPanel: React.FC<ProgressPanelProps> = ({
   onSelectSummaryChip,
   onResetCurrent,
   onResetAll,
+
   resetCurrentLabel,
   resetAllLabel,
 }) => {
@@ -154,9 +160,40 @@ const ProgressPanel: React.FC<ProgressPanelProps> = ({
               {resetAllLabel}
             </button>
           )}
+
         </div>
       )}
-    </header>
+
+      <ol className="flex flex-1 flex-col gap-2 overflow-y-auto pr-1" aria-label="پیشرفت پرسشنامه">
+        {steps.map((step, index) => {
+          const statusBadge =
+            step.status === "current"
+              ? "bg-[var(--accent-soft)] text-[var(--color-accent)] border-[var(--color-accent)]"
+              : step.status === "complete"
+                ? "bg-emerald-100/15 text-emerald-200 border-emerald-200/40"
+                : "bg-white/6 text-muted border-white/15";
+
+          return (
+            <li
+              key={`${step.title}-${index}`}
+              className={`rounded-2xl border px-3 py-2 text-xs leading-5 transition-colors ${statusBadge}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-[var(--color-foreground)]">{step.title}</span>
+                {step.optional && <span className="text-[10px] text-muted">{optionalLabel}</span>}
+              </div>
+              <span className="text-[11px] text-muted">
+                {step.status === "current"
+                  ? "در حال پاسخ دادن"
+                  : step.status === "complete"
+                    ? "پاسخ تکمیل شد"
+                    : "منتظر پاسخ"}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </aside>
   );
 };
 

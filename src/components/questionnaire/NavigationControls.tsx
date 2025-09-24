@@ -38,6 +38,7 @@ const NavigationControls: React.FC<NavigationControlsProps> = ({
         </span>
       )}
       <div className="flex items-center gap-3">
+
         {showBack && (
           <button
             onClick={onBack}
@@ -56,6 +57,7 @@ const NavigationControls: React.FC<NavigationControlsProps> = ({
             {nextLabel}
           </button>
         )}
+
       </div>
     </footer>
   );

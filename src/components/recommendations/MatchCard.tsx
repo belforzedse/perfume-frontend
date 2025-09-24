@@ -82,9 +82,11 @@ const MatchCard: React.FC<MatchCardProps> = ({
   const notePreview = perfume.allNotes.slice(0, compact === "ultra" ? 2 : 4);
 
   const [expanded, setExpanded] = React.useState(false);
+
   const toggleExpanded = React.useCallback(() => {
     setExpanded((prev) => !prev);
   }, []);
+
 
   const handleKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -100,12 +102,14 @@ const MatchCard: React.FC<MatchCardProps> = ({
     <article
       role="button"
       tabIndex={0}
+
       onClick={toggleExpanded}
       onKeyDown={handleKeyDown}
       aria-expanded={expanded}
       aria-label={`${title ?? ""} - درصد تطابق ${matchPercentLabel}`}
+
       className="interactive-card glass-card relative flex h-full flex-col justify-between rounded-2xl p-4 text-right tap-highlight touch-target focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-    >
+
       <header className="flex items-start justify-between">
         <span className="rounded-full bg-soft px-3 py-1 text-xs font-semibold text-muted">{order}</span>
         <div className="text-right">

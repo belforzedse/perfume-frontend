@@ -26,7 +26,9 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
   onEditStep,
 }) => {
   return (
+
     <div className="flex flex-col gap-3">
+
       {questions.map((question, index) => {
         const values = answers[question.key];
         const isNoteQuestion = isNotePreferenceQuestion(question);
@@ -50,6 +52,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
         return (
           <article
             key={question.key}
+
             className="flex items-start justify-between gap-4 rounded-2xl border border-white/12 bg-white/6 p-4 text-right"
           >
             <div className="space-y-1">
@@ -66,6 +69,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({
             >
               ویرایش
             </button>
+
           </article>
         );
       })}

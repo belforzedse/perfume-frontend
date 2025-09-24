@@ -9,9 +9,11 @@ import NotePreferenceGrid, {
   type NotePreferenceValue,
 } from "@/components/questionnaire/NotePreferenceGrid";
 import OptionGrid from "@/components/questionnaire/OptionGrid";
+
 import ProgressPanel, {
   type SummaryChip,
 } from "@/components/questionnaire/ProgressPanel";
+
 import ReviewStep from "@/components/questionnaire/ReviewStep";
 import { toPersianNumbers } from "@/lib/api";
 import {
@@ -92,7 +94,9 @@ const Questionnaire: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(initialStepIndex);
   const [isReview, setIsReview] = useState(false);
   const [settings, setSettings] = useState<QuestionnaireSettings>(() => readStoredSettings());
+
   const [isOverviewOpen, setIsOverviewOpen] = useState(false);
+
 
   useEffect(() => {
     if (!answersFromQuery) return;
@@ -100,6 +104,7 @@ const Questionnaire: React.FC = () => {
     setCurrentStep(firstIncompleteStep(answersFromQuery));
     setIsReview(false);
     setIsOverviewOpen(false);
+
   }, [answersFromQuery]);
 
   useEffect(() => {
@@ -135,12 +140,16 @@ const Questionnaire: React.FC = () => {
     if (requestedStep === null) return;
     if (requestedStep === "review") {
       setIsReview(true);
+
       setIsOverviewOpen(false);
+
       return;
     }
     setIsReview(false);
     setCurrentStep((prev) => (prev === requestedStep ? prev : requestedStep));
+
     setIsOverviewOpen(false);
+
   }, [requestedStep]);
 
   const hasAnswers = useMemo(
@@ -158,6 +167,7 @@ const Questionnaire: React.FC = () => {
       }
     } catch (error) {
       console.warn("Failed to persist answers", error);
+
     }
   }, [encodedAnswers, hasAnswers]);
 
@@ -176,6 +186,7 @@ const Questionnaire: React.FC = () => {
     const path = nextString.length ? `/questionnaire?${nextString}` : "/questionnaire";
     router.replace(path, { scroll: false });
   }, [encodedAnswers, hasAnswers, isReview, currentStep, router, searchParamsString]);
+
 
   const currentQuestion = !isReview ? questions[currentStep] : null;
   const isNoteStep = currentQuestion ? isNotePreferenceQuestion(currentQuestion) : false;
@@ -196,18 +207,22 @@ const Questionnaire: React.FC = () => {
     }
 
     setIsReview(true);
+
     setIsOverviewOpen(false);
-  }, [currentStep, isReview, router, sanitizedAnswers, totalSteps]);
+=======
+
 
   const goBack = useCallback(() => {
     if (isReview) {
       setIsReview(false);
       setCurrentStep(totalSteps - 1);
+
       setIsOverviewOpen(false);
       return;
     }
     setCurrentStep((step) => Math.max(step - 1, 0));
     setIsOverviewOpen(false);
+
   }, [isReview, totalSteps]);
 
   const noteQuestionDefinition = useMemo(
@@ -347,6 +362,8 @@ const Questionnaire: React.FC = () => {
 
   const summaryChips: SummaryChip[] = useMemo(() => {
     const chips: SummaryChip[] = [];
+
+
     const maybePush = (text: string, key: keyof QuestionnaireAnswers) => {
       const stepIndex = stepIndexByKey.get(key);
       if (typeof stepIndex !== "number") return;
@@ -379,6 +396,7 @@ const Questionnaire: React.FC = () => {
     }
     return chips.slice(0, SUMMARY_PREVIEW_LIMIT);
   }, [currentStep, isReview, sanitizedAnswers, stepIndexByKey]);
+
 
   const handleSelectStep = useCallback(
     (stepIndex: number) => {
@@ -461,6 +479,7 @@ const Questionnaire: React.FC = () => {
             />
 
             <section className="flex flex-1 flex-col gap-4 overflow-hidden">
+
               {!isReview && currentQuestion && !isNotePreferenceQuestion(currentQuestion) && (
                 <OptionGrid
                   question={currentQuestion}
@@ -495,13 +514,17 @@ const Questionnaire: React.FC = () => {
                   onEditStep={(index) => {
                     setIsReview(false);
                     setCurrentStep(index);
+
                     setIsOverviewOpen(false);
+
                   }}
                 />
               )}
             </section>
 
+
             <div className="flex flex-col gap-3">
+
               <NavigationControls
                 onBack={goBack}
                 onNext={goNext}

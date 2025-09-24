@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 
+
 import type { Choice } from "@/lib/kiosk-options";
 
 export type NotePreferenceValue = "like" | "dislike" | "neutral";
@@ -31,6 +32,7 @@ const BUTTON_BASE =
 const pagerButton =
   "rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium text-muted transition-colors hover:border-white/30 hover:bg-white/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-transparent disabled:opacity-40";
 
+
 const NotePreferenceGrid: React.FC<NotePreferenceGridProps> = ({
   options,
   likes,
@@ -43,6 +45,7 @@ const NotePreferenceGrid: React.FC<NotePreferenceGridProps> = ({
   neutralDescription,
   onChange,
 }) => {
+
   const [page, setPage] = useState(0);
 
   useEffect(() => setPage(0), [options]);
@@ -50,8 +53,10 @@ const NotePreferenceGrid: React.FC<NotePreferenceGridProps> = ({
   const likeLimit = typeof maxLikes === "number" ? Math.max(maxLikes, 0) : Number.POSITIVE_INFINITY;
   const dislikeLimit = typeof maxDislikes === "number" ? Math.max(maxDislikes, 0) : Number.POSITIVE_INFINITY;
 
+
   const reachedLikeLimit = likes.length >= likeLimit;
   const reachedDislikeLimit = dislikes.length >= dislikeLimit;
+
 
   const itemsPerPage = Math.max(1, Math.min(4, options.length || 4));
   const totalPages = Math.max(1, Math.ceil(options.length / itemsPerPage));
@@ -67,6 +72,7 @@ const NotePreferenceGrid: React.FC<NotePreferenceGridProps> = ({
     [itemsPerPage, options, page]
   );
 
+
   const resolveStatus = (value: string): NotePreferenceValue => {
     if (likes.includes(value)) return "like";
     if (dislikes.includes(value)) return "dislike";
@@ -79,6 +85,7 @@ const NotePreferenceGrid: React.FC<NotePreferenceGridProps> = ({
       onChange(value, "neutral");
       return;
     }
+
     if (next === "like" && reachedLikeLimit && current !== "like") return;
     if (next === "dislike" && reachedDislikeLimit && current !== "dislike") return;
     onChange(value, next);
@@ -171,6 +178,7 @@ const NotePreferenceGrid: React.FC<NotePreferenceGridProps> = ({
           </button>
         </div>
       )}
+
     </div>
   );
 };
