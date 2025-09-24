@@ -86,25 +86,6 @@ export default function AnimatedBackground() {
     };
   };
 
-  const getClickAnimationProps = (index: number) => {
-    const time = Date.now() / 1000;
-    const seed = time + index;
-    const newX = 20 + (Math.sin(seed) * 60 + 60) / 2;
-    const newY = 20 + (Math.cos(seed * 1.3) * 60 + 60) / 2;
-
-    return {
-      animate: isAnimatingRef.current ? {
-        x: `${newX}%`,
-        y: `${newY}%`,
-        scale: [1, 1.4, 1.1, 1],
-        rotate: [0, 10, -5, 0],
-      } : {},
-      transition: {
-        duration: 2.5,
-      }
-    };
-  };
-
   return (
     <div ref={containerRef}>
       <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50"></div>

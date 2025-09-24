@@ -1,226 +1,84 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { toPersianNumbers } from "@/lib/api";
-import { useRouter } from "next/navigation";
-import TouchRipple from "@/components/TouchRipple";
+import { useRouter, useSearchParams } from "next/navigation";
+
 import KioskFrame from "@/components/KioskFrame";
+import NavigationControls from "@/components/questionnaire/NavigationControls";
+import OptionGrid from "@/components/questionnaire/OptionGrid";
+import ProgressPanel from "@/components/questionnaire/ProgressPanel";
+import { toPersianNumbers } from "@/lib/api";
 import {
-  Choice,
-  INTENSITY_CHOICES,
-  MOMENT_CHOICES,
-  MOOD_CHOICES,
-  NOTE_CHOICES,
-  STYLE_CHOICES,
-  TIME_CHOICES,
-  LABEL_LOOKUP,
-} from "@/lib/kiosk-options";
+  TEXT,
+  QUESTION_CONFIG,
+  SUMMARY_PREVIEW_LIMIT,
+  type QuestionnaireAnswers,
+  initialAnswers,
+  separatorJoin,
+  sanitizeAnswers,
+  areAnswersEqual,
+  firstIncompleteStep,
+} from "@/lib/questionnaire";
 
-type QuestionType = "multiple" | "single";
-
-interface QuestionnaireAnswers {
-  moods: string[];
-  moments: string[];
-  times: string[];
-  intensity: string[];
-  styles: string[];
-  noteLikes: string[];
-  noteDislikes: string[];
-}
-
-interface QuestionDefinition {
-  title: string;
-  description?: string;
-  type: QuestionType;
-  options: Choice[];
-  key: keyof QuestionnaireAnswers;
-  optional?: boolean;
-  maxSelections?: number;
-}
-
-const TEXT = {
-  progressPrefix: "سوال",
-  progressOf: "از",
-  optional: "اختیاری",
-  requiredHint: "برای ادامه لطفاً یک گزینه را انتخاب کنید.",
-  back: "بازگشت",
-  next: "بعدی",
-  finish: "مشاهده پیشنهادات",
-  noOptions: "موردی در دسترس نیست.",
-  summaryHeading: "گزینه‌های انتخابی",
-  separator: "، ",
-  questions: {
-    moods: {
-      title: "حال‌وهواهای مورد علاقه شما چیست؟",
-      description: "حداکثر دو مورد را انتخاب کنید.",
-    },
-    moments: {
-      title: "این عطر را بیشتر برای چه موقعیت‌هایی می‌خواهید؟",
-      description: "حداکثر سه مورد را انتخاب کنید.",
-    },
-    times: {
-      title: "بیشتر برای چه زمانی از روز؟",
-    },
-    intensity: {
-      title: "شدت پخش بو را ترجیح می‌دهید؟",
-      description: "از ملایم تا قوی.",
-    },
-    styles: {
-      title: "سبک عطر مورد علاقه شما چیست؟",
-    },
-    likes: {
-      title: "به کدام دسته از نُت‌ها علاقه دارید؟",
-      description: "اختیاری؛ تا سه مورد.",
-    },
-    dislikes: {
-      title: "از کدام دسته از نُت‌ها خوشتان نمی‌آید؟",
-      description: "اختیاری؛ تا سه مورد.",
-    },
-  },
-  summaryLabels: {
-    moods: "حال‌وهوا",
-    moments: "موقعیت",
-    times: "زمان",
-    intensity: "شدت",
-    styles: "سبک",
-    likes: "نُت‌های محبوب",
-    dislikes: "نُت‌های نامطلوب",
-  },
-};
-
-const QUESTION_CONFIG: QuestionDefinition[] = [
-  {
-    key: "moods",
-    type: "multiple",
-    options: MOOD_CHOICES,
-    title: TEXT.questions.moods.title,
-    description: TEXT.questions.moods.description,
-    maxSelections: 2,
-  },
-  {
-    key: "moments",
-    type: "multiple",
-    options: MOMENT_CHOICES,
-    title: TEXT.questions.moments.title,
-    description: TEXT.questions.moments.description,
-    maxSelections: 3,
-  },
-  {
-    key: "times",
-    type: "single",
-    options: TIME_CHOICES,
-    title: TEXT.questions.times.title,
-  },
-  {
-    key: "intensity",
-    type: "single",
-    options: INTENSITY_CHOICES,
-    title: TEXT.questions.intensity.title,
-    description: TEXT.questions.intensity.description,
-  },
-  {
-    key: "styles",
-    type: "single",
-    options: STYLE_CHOICES,
-    title: TEXT.questions.styles.title,
-  },
-  {
-    key: "noteLikes",
-    type: "multiple",
-    options: NOTE_CHOICES,
-    title: TEXT.questions.likes.title,
-    description: TEXT.questions.likes.description,
-    optional: true,
-    maxSelections: 3,
-  },
-  {
-    key: "noteDislikes",
-    type: "multiple",
-    options: NOTE_CHOICES,
-    title: TEXT.questions.dislikes.title,
-    description: TEXT.questions.dislikes.description,
-    optional: true,
-    maxSelections: 3,
-  },
-];
-
-const BTN_BASE =
-  "group relative overflow-hidden rounded-3xl border-2 px-4 py-5 text-center text-lg font-semibold transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-transparent tap-highlight touch-target";
-
-const initialAnswers = (): QuestionnaireAnswers => ({
-  moods: [],
-  moments: [],
-  times: [],
-  intensity: [],
-  styles: [],
-  noteLikes: [],
-  noteDislikes: [],
-});
-
-const separatorJoin = (values: string[]) =>
-  values
-    .map((value) => LABEL_LOOKUP[value] ?? value)
-    .filter((value) => value.trim().length > 0)
-    .join(TEXT.separator);
-
-interface OptionButtonProps {
-  option: Choice;
-  isSelected: boolean;
-  disabled: boolean;
-  delayClass: string;
-  onClick: () => void;
-}
-
-const OptionButton: React.FC<OptionButtonProps> = ({ option, isSelected, disabled, delayClass, onClick }) => {
-  const buttonRef = React.useRef<HTMLButtonElement>(null);
-
-  const handlePointerDown = React.useCallback((event: React.PointerEvent<HTMLButtonElement>) => {
-    const node = buttonRef.current;
-    const ripple = (TouchRipple as unknown as { emit?: (x: number, y: number) => void }).emit;
-    if (!node || !ripple) return;
-    const rect = node.getBoundingClientRect();
-    ripple(event.clientX - rect.left, event.clientY - rect.top);
-  }, []);
-
-  const visualState = isSelected
-    ? "border-[var(--color-accent)] bg-[var(--accent-soft)] text-[var(--color-accent)] shadow-strong"
-    : "border-white/25 bg-white/6 text-[var(--color-foreground)] hover:border-white/40 hover:bg-white/15";
-
-  return (
-    <button
-      ref={buttonRef}
-      onClick={onClick}
-      onPointerDown={handlePointerDown}
-      disabled={disabled}
-      aria-pressed={isSelected}
-      className={[BTN_BASE, delayClass, visualState, disabled ? "opacity-55 cursor-not-allowed" : "active:scale-95"].join(" ")}
-    >
-      <TouchRipple />
-      <span className="pointer-events-none absolute inset-0 rounded-3xl bg-gradient-to-br from-white/12 to-transparent opacity-0 transition-opacity duration-200 group-aria-pressed:opacity-100 group-focus-visible:opacity-100" />
-      <span className="relative flex flex-col items-center gap-1">
-        {option.icon && <span className="text-2xl sm:text-[28px]">{option.icon}</span>}
-        <span className="text-sm sm:text-base font-medium leading-6">{option.label}</span>
-      </span>
-    </button>
-  );
-};
-
-export default function Questionnaire() {
+const Questionnaire: React.FC = () => {
   const router = useRouter();
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<QuestionnaireAnswers>(initialAnswers);
+  const searchParams = useSearchParams();
+
+  const answersFromQuery = useMemo(() => {
+    const param = searchParams.get("answers");
+    if (!param) return null;
+    try {
+      const parsed = JSON.parse(param) as Partial<QuestionnaireAnswers>;
+      return sanitizeAnswers(parsed);
+    } catch (error) {
+      console.warn("Invalid answers provided in query", error);
+      return null;
+    }
+  }, [searchParams]);
+
+  const initialState = answersFromQuery ?? initialAnswers();
+  const [answers, setAnswers] = useState<QuestionnaireAnswers>(initialState);
+  const [currentStep, setCurrentStep] = useState(() => firstIncompleteStep(initialState));
+
+  useEffect(() => {
+    if (!answersFromQuery) return;
+    setAnswers((prev) => (areAnswersEqual(prev, answersFromQuery) ? prev : answersFromQuery));
+    setCurrentStep(firstIncompleteStep(answersFromQuery));
+  }, [answersFromQuery]);
 
   const questions = QUESTION_CONFIG;
   const totalSteps = questions.length;
   const currentQuestion = questions[currentStep];
+  const selectedValues = answers[currentQuestion.key];
+
+  const encodedAnswers = useMemo(() => JSON.stringify(answers), [answers]);
+  const hasAnswers = useMemo(
+    () => questions.some((question) => answers[question.key].length > 0),
+    [answers, questions]
+  );
+
+  useEffect(() => {
+    if (!hasAnswers) {
+      if (searchParams.get("answers")) {
+        router.replace("/questionnaire", { scroll: false });
+      }
+      return;
+    }
+
+    const currentParam = searchParams.get("answers");
+    if (currentParam === encodedAnswers) return;
+    const query = new URLSearchParams({ answers: encodedAnswers }).toString();
+    router.replace(`/questionnaire?${query}`, { scroll: false });
+  }, [encodedAnswers, hasAnswers, router, searchParams]);
 
   const goNext = useCallback(() => {
     if (currentStep < totalSteps - 1) {
       setCurrentStep((step) => Math.min(step + 1, totalSteps - 1));
-    } else {
-      const qs = new URLSearchParams({ answers: JSON.stringify(answers) });
-      router.push(`/recommendations?${qs}`);
+      return;
     }
+
+    const query = new URLSearchParams({ answers: JSON.stringify(sanitizeAnswers(answers)) }).toString();
+    router.push(`/recommendations?${query}`);
   }, [answers, currentStep, router, totalSteps]);
 
   const goBack = useCallback(() => {
@@ -235,12 +93,14 @@ export default function Questionnaire() {
         const isSelected = selected.includes(value);
         const atLimit =
           !isSelected &&
+          currentQuestion.type === "multiple" &&
           typeof currentQuestion.maxSelections === "number" &&
           selected.length >= currentQuestion.maxSelections;
 
         if (currentQuestion.type === "single") {
           return { ...prev, [key]: isSelected ? [] : [value] };
         }
+
         if (atLimit) return prev;
         return {
           ...prev,
@@ -251,18 +111,48 @@ export default function Questionnaire() {
     [currentQuestion]
   );
 
+  const resetCurrent = useCallback(() => {
+    setAnswers((prev) => {
+      const key = currentQuestion.key;
+      if (prev[key].length === 0) return prev;
+      return { ...prev, [key]: [] };
+    });
+  }, [currentQuestion]);
+
+  const resetAll = useCallback(() => {
+    setAnswers(initialAnswers());
+    setCurrentStep(0);
+    router.replace("/questionnaire", { scroll: false });
+  }, [router]);
+
   useEffect(() => {
     if (currentQuestion.type !== "single") return;
-    if (answers[currentQuestion.key].length === 0) return;
+    if (selectedValues.length === 0) return;
     const timer = window.setTimeout(() => {
       goNext();
     }, 420);
     return () => window.clearTimeout(timer);
-  }, [answers, currentQuestion, goNext]);
+  }, [selectedValues, currentQuestion, goNext]);
 
   const progressPercent = Math.round(((currentStep + 1) / totalSteps) * 100);
+  const progressPercentLabel = `${toPersianNumbers(String(progressPercent))}%`;
   const progressLabel = `${TEXT.progressPrefix} ${toPersianNumbers(String(currentStep + 1))} ${TEXT.progressOf} ${toPersianNumbers(String(totalSteps))}`;
-  const canProceed = currentQuestion.optional || answers[currentQuestion.key].length > 0;
+
+  const limitMessage = useMemo(() => {
+    if (currentQuestion.type !== "multiple" || typeof currentQuestion.maxSelections !== "number") {
+      return null;
+    }
+    const max = currentQuestion.maxSelections;
+    const remaining = Math.max(0, max - selectedValues.length);
+    const base = `حداکثر ${toPersianNumbers(String(max))} انتخاب`;
+    if (remaining === 0) {
+      return `${base} تکمیل شد.`;
+    }
+    if (remaining === max) {
+      return `${base} — هنوز انتخابی انجام نشده است.`;
+    }
+    return `${base} — می‌توانید ${toPersianNumbers(String(remaining))} گزینه دیگر برگزینید.`;
+  }, [currentQuestion, selectedValues.length]);
 
   const summaryChips = useMemo(() => {
     const chips: string[] = [];
@@ -273,8 +163,11 @@ export default function Questionnaire() {
     if (answers.styles.length) chips.push(`${TEXT.summaryLabels.styles}: ${separatorJoin(answers.styles)}`);
     if (answers.noteLikes.length) chips.push(`${TEXT.summaryLabels.likes}: ${separatorJoin(answers.noteLikes)}`);
     if (answers.noteDislikes.length) chips.push(`${TEXT.summaryLabels.dislikes}: ${separatorJoin(answers.noteDislikes)}`);
-    return chips.slice(0, 4);
+    return chips.slice(0, SUMMARY_PREVIEW_LIMIT);
   }, [answers]);
+
+  const canProceed = currentQuestion.optional || selectedValues.length > 0;
+  const helperText = currentQuestion.optional ? TEXT.optional : TEXT.requiredHint;
 
   return (
     <KioskFrame>
@@ -284,95 +177,44 @@ export default function Questionnaire() {
           <div className="absolute right-10 bottom-16 h-56 w-56 rounded-full bg-white/20 blur-[120px]" />
         </div>
         <div className="relative flex h-full w-full max-w-[1200px] flex-col gap-6 rounded-3xl glass-deep px-6 py-8 shadow-2xl animate-blur-in">
-          <header className="flex flex-col gap-5 animate-slide-in-right">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2 text-right">
-                <p className="m-0 text-xs font-medium text-muted" aria-live="polite">
-                  {progressLabel}
-                </p>
-                <h1 className="text-3xl font-semibold text-[var(--color-foreground)]">
-                  {currentQuestion.title}
-                </h1>
-                {currentQuestion.description && (
-                  <p className="m-0 text-sm text-muted">{currentQuestion.description}</p>
-                )}
-              </div>
-              <div className="w-44 sm:w-56">
-                <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-white/15">
-                  <div
-                    className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-amber-200 via-amber-300 to-orange-300 shadow-lg transition-[width] duration-500"
-                    style={{ width: `${progressPercent}%` }}
-                  />
-                </div>
-                <span className="mt-2 block text-right text-xs font-medium text-[var(--color-accent)]">
-                  {toPersianNumbers(String(progressPercent))}%
-                </span>
-              </div>
-            </div>
-            {summaryChips.length > 0 && (
-              <div className="flex flex-wrap justify-end gap-2 text-xs text-muted">
-                <span className="rounded-full border border-white/25 px-3 py-1 font-semibold text-[var(--color-accent)]">
-                  {TEXT.summaryHeading}
-                </span>
-                {summaryChips.map((chip, index) => (
-                  <span key={index} className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs">
-                    {chip}
-                  </span>
-                ))}
-              </div>
-            )}
-          </header>
+          <ProgressPanel
+            title={currentQuestion.title}
+            description={currentQuestion.description}
+            progressLabel={progressLabel}
+            progressPercent={progressPercent}
+            progressPercentLabel={progressPercentLabel}
+            summaryHeading={TEXT.summaryHeading}
+            summaryChips={summaryChips}
+            optional={Boolean(currentQuestion.optional)}
+            optionalLabel={TEXT.optional}
+            limitMessage={limitMessage}
+            onResetCurrent={resetCurrent}
+            onResetAll={resetAll}
+          />
 
           <section className="flex flex-1 items-center justify-center animate-scale-in animate-delay-2">
-            <div className="grid w-full max-w-[900px] grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 sm:gap-4">
-              {currentQuestion.options.map((option, idx) => {
-                const values = answers[currentQuestion.key];
-                const isSelected = values.includes(option.value);
-                const disabled =
-                  !isSelected &&
-                  typeof currentQuestion.maxSelections === "number" &&
-                  values.length >= currentQuestion.maxSelections;
-                const delayClass = idx % 3 === 1 ? "animate-delay-1" : idx % 3 === 2 ? "animate-delay-2" : "animate-delay-0";
-                return (
-                  <OptionButton
-                    key={option.value}
-                    option={option}
-                    isSelected={isSelected}
-                    disabled={disabled}
-                    delayClass={delayClass}
-                    onClick={() => toggle(option.value)}
-                  />
-                );
-              })}
-              {currentQuestion.options.length === 0 && (
-                <div className="col-span-full flex h-full items-center justify-center rounded-3xl border border-white/15 bg-white/10 text-sm text-muted">
-                  {TEXT.noOptions}
-                </div>
-              )}
-            </div>
+            <OptionGrid
+              question={currentQuestion}
+              selectedValues={selectedValues}
+              onToggle={toggle}
+              emptyMessage={TEXT.noOptions}
+            />
           </section>
 
-          <footer className="flex items-center justify-between gap-3 animate-slide-in-left animate-delay-3">
-            <button
-              onClick={goBack}
-              disabled={currentStep === 0}
-              className="btn-ghost w-32 tap-highlight touch-target touch-feedback"
-            >
-              {TEXT.back}
-            </button>
-            <span className="text-xs text-muted">
-              {currentQuestion.optional ? TEXT.optional : TEXT.requiredHint}
-            </span>
-            <button
-              onClick={goNext}
-              disabled={!canProceed}
-              className="btn w-32 tap-highlight touch-target touch-feedback"
-            >
-              {currentStep === totalSteps - 1 ? TEXT.finish : TEXT.next}
-            </button>
-          </footer>
+          <NavigationControls
+            onBack={goBack}
+            onNext={goNext}
+            disableBack={currentStep === 0}
+            disableNext={!canProceed}
+            backLabel={TEXT.back}
+            nextLabel={currentStep === totalSteps - 1 ? TEXT.finish : TEXT.next}
+            helperText={helperText}
+            isOptional={Boolean(currentQuestion.optional)}
+          />
         </div>
       </div>
     </KioskFrame>
   );
-}
+};
+
+export default Questionnaire;
