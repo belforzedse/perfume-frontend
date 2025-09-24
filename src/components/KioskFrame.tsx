@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { startTransition, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import AnimatedBackground from "@/components/AnimatedBackground";
 
@@ -15,20 +15,35 @@ export default function KioskFrame({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
+    const goHome = () => {
+      if (pathname === "/") return;
+
+      const navigate = () => {
+        try {
+          router.replace("/");
+        } catch (error) {
+          console.error("Idle redirect failed via router.replace, falling back", error);
+          window.location.replace("/");
+        }
+      };
+
+      if (typeof startTransition === "function") {
+        startTransition(navigate);
+      } else {
+        navigate();
+      }
+    };
+
     const resetTimer = () => {
       if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
+        window.clearTimeout(idleTimerRef.current);
       }
-      idleTimerRef.current = setTimeout(() => {
-        if (pathname !== "/") {
-          router.replace("/");
-        }
-      }, IDLE_TIMEOUT_MS);
+      idleTimerRef.current = window.setTimeout(goHome, IDLE_TIMEOUT_MS);
     };
 
     const handleVisibility = () => {
@@ -37,24 +52,29 @@ export default function KioskFrame({
       }
     };
 
-    const events: Array<keyof WindowEventMap> = [
+    const passiveEvents: Array<keyof WindowEventMap> = [
       "pointerdown",
       "pointermove",
-      "keydown",
+      "pointerup",
       "touchstart",
-      "mousemove",
+      "touchmove",
+      "wheel",
     ];
+    const activeEvents: Array<keyof WindowEventMap> = ["keydown"];
+
+    passiveEvents.forEach((eventName) => window.addEventListener(eventName, resetTimer, { passive: true }));
+    activeEvents.forEach((eventName) => window.addEventListener(eventName, resetTimer));
+    document.addEventListener("visibilitychange", handleVisibility);
 
     resetTimer();
-    events.forEach((eventName) => window.addEventListener(eventName, resetTimer, { passive: true }));
-    document.addEventListener("visibilitychange", handleVisibility);
 
     return () => {
       if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
+        window.clearTimeout(idleTimerRef.current);
         idleTimerRef.current = null;
       }
-      events.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
+      passiveEvents.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
+      activeEvents.forEach((eventName) => window.removeEventListener(eventName, resetTimer));
       document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, [router, pathname]);

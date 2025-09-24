@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useRef } from "react";
 
 interface GradientCircle {
@@ -13,6 +13,7 @@ interface GradientCircle {
 
 export default function AnimatedBackground() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   const circles: GradientCircle[] = [
     {
@@ -38,85 +39,52 @@ export default function AnimatedBackground() {
     },
   ];
 
-  const getAnimationProps = (index: number) => {
-    const circle = circles[index];
-    const baseX = circle.x;
-    const baseY = circle.y;
-
-    return {
-      animate: {
-        x: [
-          `${baseX}%`,
-          `${baseX + 15}%`,
-          `${baseX - 10}%`,
-          `${baseX + 8}%`,
-          `${baseX}%`
-        ],
-        y: [
-          `${baseY}%`,
-          `${baseY - 12}%`,
-          `${baseY + 18}%`,
-          `${baseY - 5}%`,
-          `${baseY}%`
-        ],
-        scale: [1, 1.1, 0.9, 1.05, 1],
-      },
-      transition: {
-        duration: 14,
-        repeat: Infinity,
-        delay: index * 2.4,
-      }
-    };
-  };
-
   return (
     <div ref={containerRef} className="pointer-events-none absolute inset-0 overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-[#f9f9f7] via-[#f3f1ec] to-[#ece8e0]" />
-      <motion.div
-        className="absolute -right-20 -top-32 h-[420px] w-[320px] rounded-[45%] blur-[140px]"
-        style={{
-          background:
-            "radial-gradient(circle at 30% 35%, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0))",
-        }}
-        animate={{
-          x: ["0%", "-4%", "3%", "0%"],
-          y: ["0%", "6%", "-4%", "0%"],
-          opacity: [0.24, 0.36, 0.28, 0.24],
-        }}
-        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut" }}
-      />
-      <motion.div
-        className="absolute -left-24 bottom-[-18%] h-[360px] w-[420px] rounded-[50%] blur-[150px]"
-        style={{
-          background:
-            "radial-gradient(circle at 60% 50%, rgba(183, 146, 90, 0.22), rgba(183, 146, 90, 0))",
-          mixBlendMode: "screen",
-        }}
-        animate={{
-          x: ["0%", "5%", "-3%", "1%", "0%"],
-          y: ["0%", "-4%", "3%", "-2%", "0%"],
-          opacity: [0.16, 0.28, 0.22, 0.18, 0.16],
-        }}
-        transition={{ duration: 26, repeat: Infinity, ease: "easeInOut" }}
-      />
-      {circles.map((circle, index) => (
-        <motion.div
-          key={circle.id}
-          className={`absolute rounded-full blur-[80px] bg-gradient-to-br ${circle.color}`}
-          style={{
-            left: 0,
-            top: 0,
-            transform: 'translate(-50%, -50%)',
-          }}
-          initial={{
-            x: `${circle.x}%`,
-            y: `${circle.y}%`,
-            width: `${circle.size * 4}px`,
-            height: `${circle.size * 4}px`,
-          }}
-          {...getAnimationProps(index)}
-        />
-      ))}
+      {circles.map((circle, index) => {
+        if (shouldReduceMotion) {
+          return (
+            <div
+              key={circle.id}
+              className={`absolute rounded-full blur-[70px] bg-gradient-to-br ${circle.color}`}
+              style={{
+                left: `${circle.x}%`,
+                top: `${circle.y}%`,
+                width: `${circle.size * 3.5}px`,
+                height: `${circle.size * 3.5}px`,
+                transform: "translate(-50%, -50%)",
+                opacity: 0.28,
+              }}
+            />
+          );
+        }
+
+        return (
+          <motion.div
+            key={circle.id}
+            className={`absolute rounded-full blur-[70px] bg-gradient-to-br ${circle.color}`}
+            style={{
+              left: 0,
+              top: 0,
+              transform: "translate(-50%, -50%)",
+            }}
+            initial={{
+              x: `${circle.x}%`,
+              y: `${circle.y}%`,
+              width: `${circle.size * 3.5}px`,
+              height: `${circle.size * 3.5}px`,
+              opacity: 0.28,
+            }}
+            animate={{
+              x: [`${circle.x}%`, `${circle.x + 8}%`, `${circle.x - 5}%`, `${circle.x}%`],
+              y: [`${circle.y}%`, `${circle.y - 6}%`, `${circle.y + 8}%`, `${circle.y}%`],
+              opacity: [0.24, 0.3, 0.27, 0.24],
+            }}
+            transition={{ duration: 18 + index * 3, repeat: Infinity, ease: "easeInOut" }}
+          />
+        );
+      })}
     </div>
   );
 }
