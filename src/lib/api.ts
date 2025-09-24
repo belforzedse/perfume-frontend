@@ -1,4 +1,10 @@
-﻿const API_URL = "http://192.168.1.19:1337";
+const DEFAULT_STRAPI_URL = "http://localhost:1337";
+const normaliseBaseUrl = (value: string) => value.replace(/\/$/, "");
+const API_URL = normaliseBaseUrl(
+  process.env.NEXT_PUBLIC_STRAPI_BASE_URL && process.env.NEXT_PUBLIC_STRAPI_BASE_URL.trim().length > 0
+    ? process.env.NEXT_PUBLIC_STRAPI_BASE_URL.trim()
+    : DEFAULT_STRAPI_URL
+);
 const STRAPI_TOKEN = process.env.NEXT_PUBLIC_STRAPI_TOKEN;
 
 type PerfumeAttributeKey = "family" | "season" | "character" | "gender";

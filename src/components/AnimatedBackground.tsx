@@ -1,7 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { useEffect, useRef } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 
 interface GradientCircle {
   id: number;
@@ -11,11 +10,7 @@ interface GradientCircle {
   color: string;
 }
 
-export default function AnimatedBackground() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const isAnimatingRef = useRef(false);
-
-  const circles: GradientCircle[] = [
+const circles: GradientCircle[] = [
     {
       id: 1,
       x: 20,
@@ -39,21 +34,17 @@ export default function AnimatedBackground() {
     },
   ];
 
-  useEffect(() => {
-    const handleButtonClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'BUTTON' || target.tagName === 'A' || target.closest('button') || target.closest('a')) {
-        // Simple animation trigger - let Framer Motion handle the animation
-        isAnimatingRef.current = true;
-        setTimeout(() => {
-          isAnimatingRef.current = false;
-        }, 2500);
-      }
-    };
+export default function AnimatedBackground() {
+  const prefersReducedMotion = useReducedMotion();
 
-    document.addEventListener('click', handleButtonClick);
-    return () => document.removeEventListener('click', handleButtonClick);
-  }, []);
+  if (prefersReducedMotion) {
+    return (
+      <div
+        aria-hidden
+        className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50"
+      />
+    );
+  }
 
   const getAnimationProps = (index: number) => {
     const circle = circles[index];
@@ -87,7 +78,7 @@ export default function AnimatedBackground() {
   };
 
   return (
-    <div ref={containerRef}>
+    <div aria-hidden>
       <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50 to-yellow-50"></div>
       {circles.map((circle, index) => (
         <motion.div
