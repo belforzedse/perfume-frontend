@@ -1,4 +1,4 @@
-﻿const API_URL = process.env.NEXT_PUBLIC_STRAPI_URL || "http://localhost:1337";
+﻿const API_URL = "http://192.168.1.19:1337";
 const STRAPI_TOKEN = process.env.NEXT_PUBLIC_STRAPI_TOKEN;
 
 type PerfumeAttributeKey = "family" | "season" | "character" | "gender";
@@ -33,6 +33,7 @@ interface StrapiPerfumeAttributes {
   notes?: unknown;
   brand?: unknown;
   collection?: unknown;
+  cover?: unknown;
 }
 
 export interface PerfumeNotes {
@@ -53,6 +54,7 @@ export interface Perfume {
   character?: string;
   notes: PerfumeNotes;
   allNotes: string[];
+  image?: string;
 }
 
 const unwrapStrapiValue = <T>(value: unknown): T | undefined => {
@@ -91,6 +93,32 @@ const extractNameField = (value: unknown): string | undefined => {
     : undefined;
 };
 
+const extractImageUrl = (value: unknown): string | undefined => {
+  const resolved = unwrapStrapiValue<Record<string, unknown>>(value);
+  if (!resolved) {
+    return undefined;
+  }
+
+  const url = resolved.url;
+  if (typeof url === "string" && url.trim().length > 0) {
+    let trimmedUrl = url.trim();
+
+    // If it's a relative URL, make it absolute
+    if (trimmedUrl.startsWith("/")) {
+      trimmedUrl = `${API_URL}${trimmedUrl}`;
+    }
+
+    // Fix api.localhost hostname resolution issue
+    if (trimmedUrl.includes("api.localhost")) {
+      trimmedUrl = trimmedUrl.replace("api.localhost", "localhost");
+    }
+
+    return trimmedUrl;
+  }
+
+  return undefined;
+};
+
 const normaliseNotes = (value: unknown): PerfumeNotes => {
   const resolved = unwrapStrapiValue<StrapiNotes>(value) ?? {};
   const { top, middle, base } = resolved;
@@ -117,8 +145,8 @@ const asPerfumeAttributes = (item: unknown): StrapiPerfumeAttributes => {
   }
 
   const entity = item as Record<string, unknown>;
-  const attributes = unwrapStrapiValue<Record<string, unknown>>(entity.attributes)
-    ?? entity;
+  const attributes =
+    unwrapStrapiValue<Record<string, unknown>>(entity.attributes) ?? entity;
 
   return attributes as unknown as StrapiPerfumeAttributes;
 };
@@ -152,6 +180,8 @@ const buildPerfumeListUrl = (page = 1) => {
   params.set("populate[brand][fields][0]", "name");
   params.set("populate[collection][fields][0]", "name");
   params.set("populate[notes]", "*");
+  params.set("populate[cover][fields][0]", "url");
+  params.set("populate[cover][fields][1]", "alternativeText");
   params.set("pagination[page]", page.toString());
   params.set("pagination[pageSize]", "100");
   return `${API_URL}/api/perfumes?${params.toString()}`;
@@ -175,9 +205,11 @@ const toPerfume = (item: unknown): Perfume | null => {
     gender: typeof attrs.gender === "string" ? attrs.gender : undefined,
     season: typeof attrs.season === "string" ? attrs.season : undefined,
     family: typeof attrs.family === "string" ? attrs.family : undefined,
-    character: typeof attrs.character === "string" ? attrs.character : undefined,
+    character:
+      typeof attrs.character === "string" ? attrs.character : undefined,
     notes,
     allNotes: dedupeNotes(notes),
+    image: extractImageUrl(attrs.cover),
   };
 };
 
@@ -192,13 +224,11 @@ export async function getPerfumes(): Promise<Perfume[]> {
       const json = await fetchJson<StrapiCollectionResponse>(url);
 
       if (Array.isArray(json.data)) {
-        json.data
-          .map(toPerfume)
-          .forEach((perfume) => {
-            if (perfume) {
-              collected.push(perfume);
-            }
-          });
+        json.data.map(toPerfume).forEach((perfume) => {
+          if (perfume) {
+            collected.push(perfume);
+          }
+        });
       }
 
       pageCount = json.meta?.pagination?.pageCount ?? 1;
