@@ -205,7 +205,7 @@ export default function Questionnaire() {
             <span className="text-xs text-muted" aria-live="polite">
               {helperText}
             </span>
-            <button onClick={next} disabled={!canProceed()} className="btn w-32 tap-highlight touch-target touch-feedback">
+            <button onClick={next} disabled={!canProceed} className="btn w-32 tap-highlight touch-target touch-feedback">
               {currentStep === questions.length - 1 ? "مشاهده پیشنهادها" : "بعدی"}
             </button>
           </footer>

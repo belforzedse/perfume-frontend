@@ -248,7 +248,8 @@ const evaluateMoods = (
 
   let sum = 0;
   let strongMatches = 0;
-  let best: { value: string; ratio: number } | null = null;
+  let bestValue: string | undefined;
+  let bestRatio = 0;
 
   values.forEach((value) => {
     const profile = MOOD_PROFILES[value];
@@ -266,15 +267,21 @@ const evaluateMoods = (
     score = Math.min(score, 1);
     sum += score;
     if (score >= 0.6) strongMatches += 1;
-    if (!best || score > best.ratio) {
-      best = { value, ratio: score };
+    if (!bestValue || score > bestRatio) {
+      bestValue = value;
+      bestRatio = score;
     }
   });
 
+  let bestLabel: string | undefined;
+  if (bestValue && bestRatio >= 0.55) {
+    bestLabel = LABEL_LOOKUP[bestValue];
+  }
+
   return {
     average: sum / values.length,
-    bestLabel: best?.ratio && best.ratio >= 0.55 ? LABEL_LOOKUP[best.value] : undefined,
-    bestValue: best?.value,
+    bestLabel,
+    bestValue,
     strongMatches,
   };
 };
@@ -287,7 +294,8 @@ const evaluateMoments = (
 
   let sum = 0;
   let strongMatches = 0;
-  let best: { value: string; ratio: number } | null = null;
+  let bestValue: string | undefined;
+  let bestRatio = 0;
 
   values.forEach((value) => {
     const profile = MOMENT_PROFILES[value];
@@ -306,15 +314,21 @@ const evaluateMoments = (
     const score = seasonMatch + intensityMatch + characterMatch + noteMatch;
     sum += score;
     if (score >= 0.55) strongMatches += 1;
-    if (!best || score > best.ratio) {
-      best = { value, ratio: score };
+    if (!bestValue || score > bestRatio) {
+      bestValue = value;
+      bestRatio = score;
     }
   });
 
+  let bestLabel: string | undefined;
+  if (bestValue && bestRatio >= 0.55) {
+    bestLabel = LABEL_LOOKUP[bestValue];
+  }
+
   return {
     average: sum / values.length,
-    bestLabel: best?.ratio && best.ratio >= 0.55 ? LABEL_LOOKUP[best.value] : undefined,
-    bestValue: best?.value,
+    bestLabel,
+    bestValue,
     strongMatches,
   };
 };

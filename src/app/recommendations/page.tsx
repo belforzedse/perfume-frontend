@@ -55,7 +55,7 @@ const MatchCard = ({
   compact?: CompactMode;
 }) => {
   const title = perfume.nameFa && perfume.nameFa.trim().length > 0 ? perfume.nameFa : perfume.nameEn;
-  const subtitle = [perfume.brand, perfume.collection]
+  const detailLine = [perfume.collection, perfume.family]
     .filter((v): v is string => !!v && v.trim().length > 0)
     .join(" • ");
 
@@ -65,39 +65,24 @@ const MatchCard = ({
       : compact === "tight"
         ? "min(22vh, 150px)"
         : "min(26vh, 180px)";
-  const maxBadges = compact === "ultra" ? 1 : compact === "tight" ? 2 : 3;
-  const maxReasons = compact === "ultra" ? 0 : compact === "tight" ? 1 : 2;
-  const showConfidence = compact !== "ultra";
-  const showPreferenceSummary = compact !== "ultra" && perfume.consideredCorePreferences > 0;
-
-  const badges = [perfume.family, perfume.character, perfume.season, perfume.gender]
-    .filter((v): v is string => !!v && v.trim().length > 0)
-    .slice(0, maxBadges);
-
-  const reasonList = maxReasons > 0 ? perfume.reasons.slice(0, maxReasons) : [];
+  const brand = perfume.brand?.trim();
+  const englishName = perfume.nameEn?.trim();
 
   return (
-    <article className="glass-card flex h-full flex-col justify-between rounded-2xl p-4 text-right animate-fade-in-up">
-      <header className="flex items-start justify-between">
-        <span className="rounded-full bg-soft px-3 py-1 text-xs font-semibold text-muted">
+    <article className="glass-card flex h-full flex-col gap-5 rounded-3xl p-6 text-right animate-fade-in-up">
+      <header className="flex items-center justify-between text-muted">
+        <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-medium text-[var(--color-foreground)]">
           {formatNumber(order)}
         </span>
-        <div className="text-right leading-tight">
-          <span className="text-sm font-semibold text-[var(--color-accent)]">
-            {formatNumber(perfume.matchPercentage)}%
-          </span>
-          {showConfidence && (
-            <p className="m-0 text-[10px] text-muted">
-              اعتماد: {formatNumber(perfume.confidence)}%
-            </p>
-          )}
-        </div>
+        <span className="text-sm font-semibold text-[var(--color-foreground)]">
+          {formatNumber(perfume.matchPercentage)}٪
+        </span>
       </header>
 
       {perfume.image && (
-        <div className="my-2 flex flex-grow justify-center">
+        <div className="flex flex-grow items-center justify-center">
           <div
-            className="relative w-full flex-grow overflow-hidden rounded-2xl bg-white/10 backdrop-blur-sm"
+            className="relative w-full overflow-hidden rounded-2xl bg-white/10 backdrop-blur-sm"
             style={{ height: imageHeight }}
           >
             <Image
@@ -112,41 +97,24 @@ const MatchCard = ({
         </div>
       )}
 
-      <div className="space-y-1">
-        <h3 className={`font-semibold text-[var(--color-foreground)] ${compact === "ultra" ? "text-lg" : "text-xl"} line-clamp-1`}>
+      <div className="space-y-2 text-right">
+        {brand && (
+          <p className="m-0 text-[11px] uppercase tracking-[0.3em] text-muted line-clamp-1">
+            {brand}
+          </p>
+        )}
+        <h3
+          className={`m-0 font-semibold text-[var(--color-foreground)] ${compact === "ultra" ? "text-lg" : "text-2xl"} line-clamp-1`}
+        >
           {title}
         </h3>
-        {compact !== "ultra" && perfume.nameEn && (
-          <p className="m-0 text-xs italic text-subtle line-clamp-1">{perfume.nameEn}</p>
+        {compact !== "ultra" && englishName && (
+          <p className="m-0 text-xs text-subtle line-clamp-1">{englishName}</p>
         )}
-        {compact === "normal" && subtitle && (
-          <p className="m-0 text-xs text-muted line-clamp-1">{subtitle}</p>
+        {compact === "normal" && detailLine && (
+          <p className="m-0 text-xs text-muted line-clamp-1">{detailLine}</p>
         )}
       </div>
-
-      <div className="flex flex-wrap justify-end gap-2 text-[10px] sm:text-xs text-muted">
-        {badges.map((badge, index) => (
-          <span key={index} className="badge-soft">
-            {badge}
-          </span>
-        ))}
-      </div>
-
-      {showPreferenceSummary && (
-        <p className="m-0 text-[10px] text-muted text-right">
-          ترجیحات اصلی: {formatNumber(perfume.matchedCorePreferences)} از {formatNumber(perfume.consideredCorePreferences)}
-        </p>
-      )}
-
-      {reasonList.length > 0 && (
-        <ul className="mt-3 space-y-1 text-[11px] sm:text-xs text-muted">
-          {reasonList.map((reason, index) => (
-            <li key={index} className="line-clamp-2">
-              {reason}
-            </li>
-          ))}
-        </ul>
-      )}
     </article>
   );
 };
