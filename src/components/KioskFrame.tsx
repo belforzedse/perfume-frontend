@@ -2,6 +2,7 @@
 
 import React, { startTransition, useEffect, useRef } from "react";
 import { usePathname, useRouter } from "next/navigation";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import AnimatedBackground from "@/components/AnimatedBackground";
 
 const IDLE_TIMEOUT_MS = 30_000;
@@ -17,6 +18,7 @@ export default function KioskFrame({
   const pathname = usePathname();
   const idleTimerRef = useRef<number | null>(null);
   const isHome = pathname === "/";
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (typeof window === "undefined" || isHome) {
@@ -91,7 +93,30 @@ export default function KioskFrame({
   return (
     <div className="kiosk-root">
       <AnimatedBackground />
-      <div className={`kiosk-frame ${className}`}>{children}</div>
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={shouldReduceMotion ? "static" : pathname}
+          className={`kiosk-frame ${className}`}
+          initial={
+            shouldReduceMotion
+              ? false
+              : { opacity: 0, y: 22, scale: 0.988, filter: "blur(6px)" }
+          }
+          animate={
+            shouldReduceMotion
+              ? { opacity: 1 }
+              : { opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }
+          }
+          exit={
+            shouldReduceMotion
+              ? { opacity: 1 }
+              : { opacity: 0, y: -16, scale: 0.99, filter: "blur(6px)" }
+          }
+          transition={{ duration: 0.55, ease: [0.22, 0.61, 0.36, 1] }}
+        >
+          {children}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 }
