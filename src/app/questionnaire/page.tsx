@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toPersianNumbers } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import KioskFrame from "@/components/KioskFrame";
@@ -87,18 +87,55 @@ export default function Questionnaire() {
   const [currentStep, setCurrentStep] = useState(0);
   const [answers, setAnswers] = useState<QuestionnaireAnswers>(() => createInitialAnswers());
   const [limitMessage, setLimitMessage] = useState<string | null>(null);
+  const autoAdvanceTimerRef = useRef<number | null>(null);
 
   const questions = QUESTION_FLOW;
   const currentQuestion = questions[currentStep];
+  const totalQuestions = questions.length;
 
   useEffect(() => {
     setLimitMessage(null);
+    if (autoAdvanceTimerRef.current) {
+      window.clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
   }, [currentQuestion]);
+
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimerRef.current) {
+        window.clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  const next = useCallback(
+    (overrideAnswers?: QuestionnaireAnswers) => {
+      const answersToUse = overrideAnswers ?? answers;
+      if (currentStep < totalQuestions - 1) {
+        setCurrentStep((s) => Math.min(s + 1, totalQuestions - 1));
+      } else {
+        const qs = new URLSearchParams({ answers: serializeAnswers(answersToUse) });
+        router.push(`/recommendations?${qs.toString()}`);
+      }
+    },
+    [answers, currentStep, router, totalQuestions]
+  );
 
   const toggle = useCallback(
     (value: string) => {
+      if (autoAdvanceTimerRef.current) {
+        window.clearTimeout(autoAdvanceTimerRef.current);
+        autoAdvanceTimerRef.current = null;
+      }
+
+      let shouldAutoAdvance = false;
+      let updatedAnswersSnapshot: QuestionnaireAnswers | null = null;
+
       setAnswers((prev) => {
-        const { next, limited } = toggleSelection(prev, currentQuestion, value);
+        const wasSelected = prev[currentQuestion.key].includes(value);
+        const { next: updatedAnswers, limited } = toggleSelection(prev, currentQuestion, value);
         if (limited) {
           if (currentQuestion.maxSelections) {
             const limit = formatNumber(currentQuestion.maxSelections);
@@ -106,21 +143,33 @@ export default function Questionnaire() {
           }
           return prev;
         }
-        setLimitMessage(null);
-        return next;
-      });
-    },
-    [currentQuestion]
-  );
 
-  const next = () => {
-    if (currentStep < questions.length - 1) {
-      setCurrentStep((s) => s + 1);
-    } else {
-      const qs = new URLSearchParams({ answers: serializeAnswers(answers) });
-      router.push(`/recommendations?${qs.toString()}`);
-    }
-  };
+        setLimitMessage(null);
+        updatedAnswersSnapshot = updatedAnswers;
+
+        const selectionCount = updatedAnswers[currentQuestion.key].length;
+        const maxSelections =
+          typeof currentQuestion.maxSelections === "number"
+            ? currentQuestion.maxSelections
+            : null;
+        const reachedMax = maxSelections !== null && selectionCount === maxSelections;
+
+        shouldAutoAdvance =
+          !wasSelected &&
+          ((currentQuestion.type === "single" && !currentQuestion.optional && selectionCount > 0) || reachedMax);
+
+        return updatedAnswers;
+      });
+
+      if (shouldAutoAdvance && updatedAnswersSnapshot) {
+        autoAdvanceTimerRef.current = window.setTimeout(() => {
+          autoAdvanceTimerRef.current = null;
+          next(updatedAnswersSnapshot!);
+        }, 250);
+      }
+    },
+    [currentQuestion, next]
+  );
 
   const back = () => currentStep > 0 && setCurrentStep((s) => s - 1);
 
@@ -203,8 +252,8 @@ export default function Questionnaire() {
             <span className="text-xs text-muted" aria-live="polite">
               {helperText}
             </span>
-            <button onClick={next} disabled={!canProceed} className="btn w-32 tap-highlight touch-target touch-feedback">
-              {currentStep === questions.length - 1 ? "مشاهده پیشنهادها" : "بعدی"}
+            <button onClick={() => next()} disabled={!canProceed} className="btn w-32 tap-highlight touch-target touch-feedback">
+              {currentStep === totalQuestions - 1 ? "مشاهده پیشنهادها" : "بعدی"}
             </button>
           </footer>
         </div>
