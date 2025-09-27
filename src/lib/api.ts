@@ -1,5 +1,5 @@
-﻿const API_URL = "http://192.168.1.19:1337";
-const STRAPI_TOKEN = process.env.NEXT_PUBLIC_STRAPI_TOKEN;
+﻿export const API_URL = "http://192.168.1.19:1337";
+export const STRAPI_TOKEN = process.env.NEXT_PUBLIC_STRAPI_TOKEN;
 
 type PerfumeAttributeKey = "family" | "season" | "character" | "gender";
 
