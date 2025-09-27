@@ -40,6 +40,7 @@ interface StrapiRelation<T> {
 }
 
 interface BrandAttributes {
+  name?: string | null;
   name_fa?: string | null;
   name_en?: string | null;
   description?: string | null;
@@ -49,6 +50,7 @@ interface BrandAttributes {
 
 export interface AdminBrand {
   id: number;
+  name: string;
   name_fa: string;
   name_en: string;
   description?: string;
@@ -58,11 +60,17 @@ export interface AdminBrand {
 
 const mapBrand = (entity: StrapiEntity<BrandAttributes>): AdminBrand => {
   const attributes = entity.attributes ?? {};
+  const name = attributes.name?.trim() ?? null;
+  const nameFa = attributes.name_fa?.trim() ?? null;
+  const nameEn = attributes.name_en?.trim() ?? null;
+  const fallbackName = nameFa ?? nameEn ?? "";
+  const resolvedName = name ?? fallbackName;
 
   return {
     id: entity.id,
-    name_fa: attributes.name_fa?.trim() ?? "",
-    name_en: attributes.name_en?.trim() ?? "",
+    name: resolvedName,
+    name_fa: nameFa ?? resolvedName,
+    name_en: nameEn ?? resolvedName,
     description: attributes.description?.trim() || undefined,
     slug: attributes.slug?.trim() || undefined,
     website: attributes.website?.trim() || undefined,
@@ -175,6 +183,7 @@ const mapPerfume = (entity: StrapiEntity<PerfumeAttributes>): AdminPerfume => {
 };
 
 export interface CreateBrandPayload {
+  name: string;
   name_fa: string;
   name_en: string;
   description?: string;
@@ -210,7 +219,7 @@ export const fetchBrandsAdmin = async (): Promise<AdminBrand[]> => {
       headers: authHeaders(),
       params: {
         "pagination[pageSize]": 100,
-        sort: "name_fa:asc",
+        sort: "name:asc",
       },
     },
   );
