@@ -32,6 +32,10 @@ const defaultValues: BrandFormValues = {
 };
 
 const buildPayload = (values: BrandFormValues): CreateBrandPayload => ({
+  name:
+    values.nameFa.trim() ||
+    values.nameEn.trim() ||
+    "",
   name_fa: values.nameFa.trim(),
   name_en: values.nameEn.trim(),
   description: values.description?.trim() || undefined,
