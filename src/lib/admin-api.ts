@@ -235,7 +235,7 @@ export const fetchCollectionsAdmin = async (): Promise<AdminCollection[]> => {
     params: {
       "pagination[pageSize]": 100,
       populate: "brand",
-      sort: "name_fa:asc",
+      sort: "name:asc",
     },
   });
 
