@@ -50,32 +50,42 @@ export interface AdminBrand {
 
 const mapBrand = (entity: StrapiEntity<BrandAttributes>): AdminBrand => {
   // In Strapi v5, attributes are at root level
-  const attributes = entity.attributes ?? (entity as any);
+  const attributes = entity.attributes ?? (entity as unknown as Record<string, unknown>);
 
   return {
     id: entity.id,
-    name: attributes.name?.trim() ?? "",
+    name: (attributes.name as string | null | undefined)?.trim() ?? "",
   };
 };
 
 interface CollectionAttributes {
   name?: string | null;
+  brand?: StrapiRelation<BrandAttributes>;
 }
 
 export interface AdminCollection {
   id: number;
   name: string;
+  brand?: AdminBrand | null;
 }
 
 const mapCollection = (
   entity: StrapiEntity<CollectionAttributes>,
 ): AdminCollection => {
   // In Strapi v5, attributes are at root level
-  const attributes = entity.attributes ?? (entity as any);
+  const attributes = entity.attributes ?? (entity as unknown as Record<string, unknown>);
+
+  // Extract brand data if it exists
+  const brandData = (attributes.brand as StrapiRelation<BrandAttributes> | undefined)?.data;
+  const brandAttributes = brandData?.attributes ?? (brandData as unknown as Record<string, unknown>);
 
   return {
     id: entity.id,
-    name: attributes.name?.trim() ?? "",
+    name: (attributes.name as string | null | undefined)?.trim() ?? "",
+    brand: brandData ? {
+      id: brandData.id,
+      name: (brandAttributes?.name as string | null | undefined)?.trim() ?? "",
+    } : null,
   };
 };
 
@@ -132,13 +142,13 @@ const normaliseNotes = (
   };
 };
 
-const extractImageUrl = (cover: any): string | undefined => {
+const extractImageUrl = (cover: unknown): string | undefined => {
   if (!cover) return undefined;
 
   // Handle different possible structures for cover data
-  const coverData = cover.data || cover;
-  if (coverData?.url) {
-    let url = coverData.url;
+  const coverData = (cover as { data?: unknown }).data || cover;
+  if (coverData && typeof coverData === 'object' && 'url' in coverData) {
+    let url = coverData.url as string;
     // Make relative URLs absolute
     if (url.startsWith('/')) {
       url = `${API_URL}${url}`;
@@ -151,21 +161,22 @@ const extractImageUrl = (cover: any): string | undefined => {
 
 const mapPerfume = (entity: StrapiEntity<PerfumeAttributes>): AdminPerfume => {
   // In Strapi v5, attributes are at root level
-  const attributes = entity.attributes ?? (entity as any);
+  const attributes = entity.attributes ?? (entity as unknown as Record<string, unknown>);
+  const attrs = attributes as PerfumeAttributes;
 
   return {
     id: entity.id,
-    name_fa: attributes.name_fa?.trim() ?? "",
-    name_en: attributes.name_en?.trim() ?? "",
-    description: attributes.description?.trim() || undefined,
-    gender: attributes.gender?.trim() || undefined,
-    season: attributes.season?.trim() || undefined,
-    family: attributes.family?.trim() || undefined,
-    character: attributes.character?.trim() || undefined,
-    notes: normaliseNotes(attributes.notes),
-    brand: attributes.brand ? { id: (attributes.brand as any).id || 0, name: attributes.brand.name || "" } : null,
-    collection: attributes.collection ? { id: attributes.collection.id || 0, name: attributes.collection.name || "" } : null,
-    image: extractImageUrl(attributes.cover),
+    name_fa: attrs.name_fa?.trim() ?? "",
+    name_en: attrs.name_en?.trim() ?? "",
+    description: attrs.description?.trim() || undefined,
+    gender: attrs.gender?.trim() || undefined,
+    season: attrs.season?.trim() || undefined,
+    family: attrs.family?.trim() || undefined,
+    character: attrs.character?.trim() || undefined,
+    notes: normaliseNotes(attrs.notes),
+    brand: attrs.brand ? { id: (attrs.brand as { id?: number }).id || 0, name: attrs.brand.name || "" } : null,
+    collection: attrs.collection ? { id: (attrs.collection as { id?: number }).id || 0, name: attrs.collection.name || "" } : null,
+    image: extractImageUrl((attrs as unknown as Record<string, unknown>).cover),
   };
 };
 
@@ -213,6 +224,7 @@ export const fetchCollectionsAdmin = async (): Promise<AdminCollection[]> => {
     headers: authHeaders(),
     params: {
       "pagination[pageSize]": 100,
+      "populate[brand][fields][0]": "name",
       sort: "name:asc",
     },
   });
@@ -299,7 +311,7 @@ export const createPerfume = async (
   return mapPerfume(response.data.data);
 };
 
-export interface UpdatePerfumePayload extends CreatePerfumePayload {}
+export type UpdatePerfumePayload = CreatePerfumePayload;
 
 export const updatePerfume = async (
   id: number,

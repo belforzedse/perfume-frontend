@@ -239,7 +239,7 @@ export default function AdminProductsPage() {
       character: perfume.character || "",
       description: perfume.description || "",
       notes: perfume.notes,
-      image: perfume.image || null,
+      image: null, // Don't populate image field when editing (user must upload a new file to change it)
     });
   }, [reset]);
 

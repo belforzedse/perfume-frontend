@@ -1,13 +1,12 @@
-# Frontend Dockerfile (fixed)
-FROM node:20-bookworm AS builder
+# Dockerfile for Next.js
+FROM node:20-alpine AS builder
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install --frozen-lockfile
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
-RUN npm run build -- --no-turbo
+RUN npm run build
 
-FROM node:20-bookworm AS runner
+FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app ./
