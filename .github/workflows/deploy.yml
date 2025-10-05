@@ -1,17 +1,20 @@
-name: Deploy Frontend
+name: 🚀 Deploy Frontend to VPS
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      # 1️⃣ Checkout your code
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # 2️⃣ Quick connectivity check (optional but nice)
       - name: Test SSH connection
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -22,7 +25,8 @@ jobs:
           debug: true
           use_insecure_cipher: true
 
-      - name: Copy to VPS
+      # 3️⃣ Copy project files to VPS
+      - name: Upload project files to VPS
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -30,20 +34,31 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           source: "."
           target: "~/perfume-frontend"
+          overwrite: true
           debug: true
           use_insecure_cipher: true
 
-      - name: Deploy via SSH
+      # 4️⃣ Run Docker deployment commands on VPS
+      - name: Deploy frontend using Docker
         uses: appleboy/ssh-action@v0.1.10
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_KEY }}
           script: |
+            set -e  # stop on error
             cd ~/perfume-frontend
-            docker-compose down
-            docker-compose build --no-cache
-            docker-compose up -d
+
+            # Create .env.local if missing
+            if [ ! -f .env.local ]; then
+              echo "NEXT_PUBLIC_API_URL=http://82.115.26.133:1337" > .env.local
+              echo "NODE_ENV=production" >> .env.local
+            fi
+
+            echo "✅ Starting Docker deployment..."
+            docker compose down || true
+            docker compose build --no-cache
+            docker compose up -d
+            docker system prune -f
           debug: true
           use_insecure_cipher: true
-#hello
