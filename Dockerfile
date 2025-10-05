@@ -1,30 +1,27 @@
 # ---------- Stage 1: Build ----------
-FROM node:20-alpine AS builder
-
+FROM node:20-bullseye AS builder
 WORKDIR /app
 
-# Copy dependency files and install
+# Install dependencies
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 
-# Copy the rest of the source
+# Copy project
 COPY . .
 
-# ✅ Disable Turbopack & ESLint for stable build
+# ✅ Force classic compiler (disable Turbopack completely)
 ENV NEXT_SKIP_TURBOPACK=1
 ENV NEXT_IGNORE_ESLINT=1
 
-# 👇 Build using stable compiler
+# Build the app
 RUN npm run build
 
 # ---------- Stage 2: Runtime ----------
-FROM node:20-alpine AS runner
-
+FROM node:20-bullseye AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Copy only what's needed for runtime
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
