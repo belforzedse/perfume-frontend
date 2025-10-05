@@ -20,6 +20,9 @@ jobs:
           key: ${{ secrets.VPS_KEY }}
           source: "."
           target: "~/perfume-frontend"
+          debug: true
+          use_insecure_cipher: true
+
 
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v0.1.10
@@ -32,3 +35,6 @@ jobs:
             docker-compose down
             docker-compose build --no-cache
             docker-compose up -d
+          debug: true
+          use_insecure_cipher: true
+
