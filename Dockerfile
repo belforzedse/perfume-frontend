@@ -10,7 +10,7 @@ ENV NEXT_DISABLE_TURBOPACK=1
 ENV NEXT_IGNORE_ESLINT=1
 
 # 👇 Force stable compiler
-RUN npm run build
+RUN npx next build --no-turbo
 
 # ---------- Stage 2: Runtime ----------
 FROM node:20-alpine AS runner
