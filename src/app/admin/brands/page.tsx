@@ -16,31 +16,15 @@ type FeedbackState = {
 };
 
 interface BrandFormValues {
-  nameFa: string;
-  nameEn: string;
-  description?: string;
-  slug?: string;
-  website?: string;
+  name: string;
 }
 
 const defaultValues: BrandFormValues = {
-  nameFa: "",
-  nameEn: "",
-  description: "",
-  slug: "",
-  website: "",
+  name: "",
 };
 
 const buildPayload = (values: BrandFormValues): CreateBrandPayload => ({
-  name:
-    values.nameFa.trim() ||
-    values.nameEn.trim() ||
-    "",
-  name_fa: values.nameFa.trim(),
-  name_en: values.nameEn.trim(),
-  description: values.description?.trim() || undefined,
-  slug: values.slug?.trim() || undefined,
-  website: values.website?.trim() || undefined,
+  name: values.name.trim(),
 });
 
 export default function AdminBrandsPage() {
@@ -102,87 +86,22 @@ export default function AdminBrandsPage() {
         className="space-y-6 rounded-[var(--radius-lg)] border border-[var(--color-border)] bg-[var(--color-background-soft)]/70 p-6 shadow-[var(--shadow-soft)]"
         onSubmit={handleSubmit(onSubmit)}
       >
-        <div className="grid gap-5 md:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="nameFa">
-              نام فارسی <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="nameFa"
-              type="text"
-              className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
-              placeholder="مثلاً شنل"
-              {...register("nameFa", { required: "نام فارسی الزامی است." })}
-            />
-            {errors.nameFa && (
-              <span className="text-xs text-red-500">{errors.nameFa.message}</span>
-            )}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="nameEn">
-              نام انگلیسی <span className="text-red-500">*</span>
-            </label>
-            <input
-              id="nameEn"
-              type="text"
-              className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
-              placeholder="مثلاً Chanel"
-              {...register("nameEn", { required: "نام انگلیسی الزامی است." })}
-            />
-            {errors.nameEn && (
-              <span className="text-xs text-red-500">{errors.nameEn.message}</span>
-            )}
-          </div>
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="slug">
-              اسلاگ (اختیاری)
-            </label>
-            <input
-              id="slug"
-              type="text"
-              className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
-              placeholder="مثلاً chanel"
-              {...register("slug")}
-            />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="website">
-              وب‌سایت (اختیاری)
-            </label>
-            <input
-              id="website"
-              type="url"
-              className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
-              placeholder="https://example.com"
-              {...register("website", {
-                pattern: {
-                  value: /^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[^\s]*)?$/i,
-                  message: "آدرس وارد شده معتبر نیست.",
-                },
-              })}
-            />
-            {errors.website && (
-              <span className="text-xs text-red-500">{errors.website.message}</span>
-            )}
-          </div>
-        </div>
-
         <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="description">
-            توضیحات (اختیاری)
+          <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="name">
+            نام برند <span className="text-red-500">*</span>
           </label>
-          <textarea
-            id="description"
-            className="min-h-[120px] rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
-            placeholder="توضیحات تکمیلی برند را اینجا بنویسید..."
-            {...register("description")}
+          <input
+            id="name"
+            type="text"
+            className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
+            placeholder="مثلاً شنل"
+            {...register("name", { required: "نام برند الزامی است." })}
           />
+          {errors.name && (
+            <span className="text-xs text-red-500">{errors.name.message}</span>
+          )}
         </div>
+
 
         {status && (
           <div
@@ -221,23 +140,7 @@ export default function AdminBrandsPage() {
                 key={brand.id}
                 className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-[var(--color-background-soft)]/70 p-4 text-sm shadow-[var(--shadow-soft)]"
               >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="font-semibold text-[var(--color-foreground)]">{brand.name_fa}</p>
-                  <span className="text-xs text-[var(--color-foreground-subtle)]">{brand.name_en}</span>
-                </div>
-                {brand.description && (
-                  <p className="mt-2 text-[var(--color-foreground-muted)] leading-relaxed">{brand.description}</p>
-                )}
-                {brand.website && (
-                  <a
-                    href={brand.website.startsWith("http") ? brand.website : `https://${brand.website}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex text-xs font-medium text-[var(--color-accent-strong)]"
-                  >
-                    مشاهده وب‌سایت ↗
-                  </a>
-                )}
+                <p className="font-semibold text-[var(--color-foreground)]">{brand.name}</p>
               </li>
             ))}
           </ul>

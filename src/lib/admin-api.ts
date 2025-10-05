@@ -41,72 +41,41 @@ interface StrapiRelation<T> {
 
 interface BrandAttributes {
   name?: string | null;
-  name_fa?: string | null;
-  name_en?: string | null;
-  description?: string | null;
-  slug?: string | null;
-  website?: string | null;
 }
 
 export interface AdminBrand {
   id: number;
   name: string;
-  name_fa: string;
-  name_en: string;
-  description?: string;
-  slug?: string;
-  website?: string;
 }
 
 const mapBrand = (entity: StrapiEntity<BrandAttributes>): AdminBrand => {
-  const attributes = entity.attributes ?? {};
-  const name = attributes.name?.trim() ?? null;
-  const nameFa = attributes.name_fa?.trim() ?? null;
-  const nameEn = attributes.name_en?.trim() ?? null;
-  const fallbackName = nameFa ?? nameEn ?? "";
-  const resolvedName = name ?? fallbackName;
+  // In Strapi v5, attributes are at root level
+  const attributes = entity.attributes ?? (entity as any);
 
   return {
     id: entity.id,
-    name: resolvedName,
-    name_fa: nameFa ?? resolvedName,
-    name_en: nameEn ?? resolvedName,
-    description: attributes.description?.trim() || undefined,
-    slug: attributes.slug?.trim() || undefined,
-    website: attributes.website?.trim() || undefined,
+    name: attributes.name?.trim() ?? "",
   };
 };
 
 interface CollectionAttributes {
-  name_fa?: string | null;
-  name_en?: string | null;
-  description?: string | null;
-  slug?: string | null;
-  brand?: StrapiRelation<BrandAttributes>;
+  name?: string | null;
 }
 
 export interface AdminCollection {
   id: number;
-  name_fa: string;
-  name_en: string;
-  description?: string;
-  slug?: string;
-  brand?: AdminBrand | null;
+  name: string;
 }
 
 const mapCollection = (
   entity: StrapiEntity<CollectionAttributes>,
 ): AdminCollection => {
-  const attributes = entity.attributes ?? {};
-  const brandData = attributes.brand?.data ?? null;
+  // In Strapi v5, attributes are at root level
+  const attributes = entity.attributes ?? (entity as any);
 
   return {
     id: entity.id,
-    name_fa: attributes.name_fa?.trim() ?? "",
-    name_en: attributes.name_en?.trim() ?? "",
-    description: attributes.description?.trim() || undefined,
-    slug: attributes.slug?.trim() || undefined,
-    brand: brandData ? mapBrand(brandData) : null,
+    name: attributes.name?.trim() ?? "",
   };
 };
 
@@ -131,8 +100,8 @@ interface PerfumeAttributes {
   family?: string | null;
   character?: string | null;
   notes?: PerfumeNotesAttributes | null;
-  brand?: StrapiRelation<BrandAttributes>;
-  collection?: StrapiRelation<CollectionAttributes>;
+  brand?: BrandAttributes | null;
+  collection?: CollectionAttributes | null;
 }
 
 export interface AdminPerfume {
@@ -147,6 +116,7 @@ export interface AdminPerfume {
   notes: PerfumeNotes;
   brand?: AdminBrand | null;
   collection?: AdminCollection | null;
+  image?: string;
 }
 
 const normaliseNotes = (
@@ -162,10 +132,26 @@ const normaliseNotes = (
   };
 };
 
+const extractImageUrl = (cover: any): string | undefined => {
+  if (!cover) return undefined;
+
+  // Handle different possible structures for cover data
+  const coverData = cover.data || cover;
+  if (coverData?.url) {
+    let url = coverData.url;
+    // Make relative URLs absolute
+    if (url.startsWith('/')) {
+      url = `${API_URL}${url}`;
+    }
+    return url;
+  }
+
+  return undefined;
+};
+
 const mapPerfume = (entity: StrapiEntity<PerfumeAttributes>): AdminPerfume => {
-  const attributes = entity.attributes ?? {};
-  const brandData = attributes.brand?.data ?? null;
-  const collectionData = attributes.collection?.data ?? null;
+  // In Strapi v5, attributes are at root level
+  const attributes = entity.attributes ?? (entity as any);
 
   return {
     id: entity.id,
@@ -177,26 +163,18 @@ const mapPerfume = (entity: StrapiEntity<PerfumeAttributes>): AdminPerfume => {
     family: attributes.family?.trim() || undefined,
     character: attributes.character?.trim() || undefined,
     notes: normaliseNotes(attributes.notes),
-    brand: brandData ? mapBrand(brandData) : null,
-    collection: collectionData ? mapCollection(collectionData) : null,
+    brand: attributes.brand ? { id: (attributes.brand as any).id || 0, name: attributes.brand.name || "" } : null,
+    collection: attributes.collection ? { id: attributes.collection.id || 0, name: attributes.collection.name || "" } : null,
+    image: extractImageUrl(attributes.cover),
   };
 };
 
 export interface CreateBrandPayload {
   name: string;
-  name_fa: string;
-  name_en: string;
-  description?: string;
-  slug?: string;
-  website?: string;
 }
 
 export interface CreateCollectionPayload {
-  name_fa: string;
-  name_en: string;
-  description?: string;
-  slug?: string;
-  brand?: number;
+  name: string;
 }
 
 export interface CreatePerfumePayload {
@@ -210,6 +188,7 @@ export interface CreatePerfumePayload {
   notes: PerfumeNotes;
   brand?: number;
   collection?: number;
+  cover?: number;
 }
 
 export const fetchBrandsAdmin = async (): Promise<AdminBrand[]> => {
@@ -234,7 +213,6 @@ export const fetchCollectionsAdmin = async (): Promise<AdminCollection[]> => {
     headers: authHeaders(),
     params: {
       "pagination[pageSize]": 100,
-      populate: "brand",
       sort: "name:asc",
     },
   });
@@ -249,7 +227,8 @@ export const fetchPerfumesAdmin = async (): Promise<AdminPerfume[]> => {
       headers: authHeaders(),
       params: {
         "pagination[pageSize]": 50,
-        populate: "brand,collection",
+        "populate[brand][fields][0]": "name",
+        "populate[collection][fields][0]": "name",
         sort: "updatedAt:desc",
       },
     },
@@ -277,10 +256,30 @@ export const createCollection = async (
     StrapiSingleResponse<CollectionAttributes>
   >("/api/collections", { data: payload }, {
     headers: authHeaders(true),
-    params: { populate: "brand" },
   });
 
   return mapCollection(response.data.data);
+};
+
+export const uploadFile = async (file: File): Promise<{ id: number; url: string }> => {
+  const formData = new FormData();
+  formData.append('files', file);
+
+  const response = await adminClient.post('/api/upload', formData, {
+    headers: {
+      ...authHeaders(),
+      // Don't set Content-Type for FormData - let the browser set it
+    },
+  });
+
+  if (response.data && response.data[0]) {
+    return {
+      id: response.data[0].id,
+      url: response.data[0].url,
+    };
+  }
+
+  throw new Error('File upload failed');
 };
 
 export const createPerfume = async (
@@ -290,8 +289,38 @@ export const createPerfume = async (
     StrapiSingleResponse<PerfumeAttributes>
   >("/api/perfumes", { data: payload }, {
     headers: authHeaders(true),
-    params: { populate: "brand,collection" },
+    params: {
+      "populate[brand][fields][0]": "name",
+      "populate[collection][fields][0]": "name",
+      "populate[cover][fields][0]": "url",
+    },
   });
 
   return mapPerfume(response.data.data);
+};
+
+export interface UpdatePerfumePayload extends CreatePerfumePayload {}
+
+export const updatePerfume = async (
+  id: number,
+  payload: UpdatePerfumePayload,
+): Promise<AdminPerfume> => {
+  const response = await adminClient.put<
+    StrapiSingleResponse<PerfumeAttributes>
+  >(`/api/perfumes/${id}`, { data: payload }, {
+    headers: authHeaders(true),
+    params: {
+      "populate[brand][fields][0]": "name",
+      "populate[collection][fields][0]": "name",
+      "populate[cover][fields][0]": "url",
+    },
+  });
+
+  return mapPerfume(response.data.data);
+};
+
+export const deletePerfume = async (id: number): Promise<void> => {
+  await adminClient.delete(`/api/perfumes/${id}`, {
+    headers: authHeaders(),
+  });
 };

@@ -5,15 +5,21 @@ import { Controller, useForm } from "react-hook-form";
 
 import {
   createPerfume,
+  updatePerfume,
+  deletePerfume,
   fetchBrandsAdmin,
   fetchCollectionsAdmin,
   fetchPerfumesAdmin,
+  uploadFile,
   type AdminBrand,
   type AdminCollection,
   type AdminPerfume,
   type CreatePerfumePayload,
+  type UpdatePerfumePayload,
   type PerfumeNotes,
 } from "@/lib/admin-api";
+
+import ImageUpload from "@/components/ImageUpload";
 
 type FeedbackState = {
   type: "success" | "error";
@@ -31,6 +37,7 @@ interface PerfumeFormValues {
   character: string;
   description?: string;
   notes: PerfumeNotes;
+  image?: File | null;
 }
 
 const genderOptions = ["زنانه", "مردانه", "یونیسکس"];
@@ -53,6 +60,7 @@ const createDefaultValues = (): PerfumeFormValues => ({
     middle: [],
     base: [],
   },
+  image: null,
 });
 
 const normaliseNotes = (items: string[]): string[] =>
@@ -159,6 +167,8 @@ export default function AdminProductsPage() {
   const [perfumes, setPerfumes] = useState<AdminPerfume[]>([]);
   const [status, setStatus] = useState<FeedbackState | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
+  const [editingPerfume, setEditingPerfume] = useState<AdminPerfume | null>(null);
+  const [isEditing, setIsEditing] = useState<boolean>(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -213,11 +223,73 @@ export default function AdminProductsPage() {
     }
   }, [availableCollections, selectedCollectionId, setValue]);
 
+  const handleEdit = useCallback((perfume: AdminPerfume) => {
+    setEditingPerfume(perfume);
+    setIsEditing(true);
+
+    // Populate form with existing data
+    reset({
+      nameFa: perfume.name_fa,
+      nameEn: perfume.name_en,
+      brandId: perfume.brand?.id.toString() || "",
+      collectionId: perfume.collection?.id.toString() || "",
+      gender: perfume.gender || "",
+      season: perfume.season || "",
+      family: perfume.family || "",
+      character: perfume.character || "",
+      description: perfume.description || "",
+      notes: perfume.notes,
+      image: perfume.image || null,
+    });
+  }, [reset]);
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingPerfume(null);
+    setIsEditing(false);
+    reset(createDefaultValues());
+    setStatus(null);
+  }, [reset]);
+
+  const handleDelete = useCallback(async (perfume: AdminPerfume) => {
+    if (!confirm(`آیا مطمئن هستید که می‌خواهید عطر "${perfume.name_fa}" را حذف کنید؟`)) {
+      return;
+    }
+
+    try {
+      await deletePerfume(perfume.id);
+      setStatus({ type: "success", message: "محصول با موفقیت حذف شد." });
+      await loadData();
+    } catch (error) {
+      console.error("خطا در حذف محصول", error);
+      setStatus({
+        type: "error",
+        message: "حذف محصول با خطا مواجه شد. دوباره تلاش کنید.",
+      });
+    }
+  }, [loadData]);
+
   const onSubmit = async (values: PerfumeFormValues) => {
     setStatus(null);
 
     try {
-      const payload: CreatePerfumePayload = {
+      let coverId: number | undefined;
+
+      // Upload image if provided and it's a File (not existing URL)
+      if (values.image && values.image instanceof File) {
+        try {
+          const uploadResult = await uploadFile(values.image);
+          coverId = uploadResult.id;
+        } catch (uploadError) {
+          console.error("خطا در آپلود تصویر", uploadError);
+          setStatus({
+            type: "error",
+            message: "آپلود تصویر با خطا مواجه شد. لطفاً دوباره تلاش کنید.",
+          });
+          return;
+        }
+      }
+
+      const payload: CreatePerfumePayload | UpdatePerfumePayload = {
         name_fa: values.nameFa.trim(),
         name_en: values.nameEn.trim(),
         description: values.description?.trim() || undefined,
@@ -232,17 +304,27 @@ export default function AdminProductsPage() {
         },
         brand: Number(values.brandId),
         collection: values.collectionId ? Number(values.collectionId) : undefined,
+        cover: coverId,
       };
 
-      await createPerfume(payload);
-      setStatus({ type: "success", message: "محصول جدید با موفقیت ثبت شد." });
-      reset(createDefaultValues());
+      if (isEditing && editingPerfume) {
+        await updatePerfume(editingPerfume.id, payload);
+        setStatus({ type: "success", message: "محصول با موفقیت به‌روزرسانی شد." });
+        handleCancelEdit();
+      } else {
+        await createPerfume(payload);
+        setStatus({ type: "success", message: "محصول جدید با موفقیت ثبت شد." });
+        reset(createDefaultValues());
+      }
+
       await loadData();
     } catch (error) {
-      console.error("خطا در ثبت محصول", error);
+      console.error("خطا در ثبت/ویرایش محصول", error);
       setStatus({
         type: "error",
-        message: "ثبت محصول با خطا مواجه شد. مقادیر فرم را بررسی و مجدداً تلاش کنید.",
+        message: isEditing
+          ? "ویرایش محصول با خطا مواجه شد. مقادیر فرم را بررسی و مجدداً تلاش کنید."
+          : "ثبت محصول با خطا مواجه شد. مقادیر فرم را بررسی و مجدداً تلاش کنید.",
       });
     }
   };
@@ -250,9 +332,13 @@ export default function AdminProductsPage() {
   return (
     <section className="flex flex-col gap-10" dir="rtl">
       <div className="space-y-3">
-        <h2 className="text-2xl font-semibold">محصولات / عطرها</h2>
+        <h2 className="text-2xl font-semibold">
+          {isEditing ? `ویرایش عطر: ${editingPerfume?.name_fa}` : "محصولات / عطرها"}
+        </h2>
         <p className="text-[var(--color-foreground-muted)]">
-          اطلاعات کامل عطرهای فروشگاه را وارد کنید و ارتباط آن‌ها را با برند و کالکشن مشخص نمایید.
+          {isEditing
+            ? "اطلاعات عطر را ویرایش کنید و تغییرات را ذخیره نمایید."
+            : "اطلاعات کامل عطرهای فروشگاه را وارد کنید و ارتباط آن‌ها را با برند و کالکشن مشخص نمایید."}
         </p>
       </div>
 
@@ -307,7 +393,7 @@ export default function AdminProductsPage() {
               <option value="">یک برند را انتخاب کنید</option>
               {brands.map((brand) => (
                 <option key={brand.id} value={brand.id}>
-                  {brand.name_fa} ({brand.name_en})
+                  {brand.name}
                 </option>
               ))}
             </select>
@@ -328,8 +414,7 @@ export default function AdminProductsPage() {
               <option value="">انتخاب نشده</option>
               {availableCollections.map((collection) => (
                 <option key={collection.id} value={collection.id}>
-                  {collection.name_fa}
-                  {collection.brand && ` - ${collection.brand.name_fa}`}
+                  {collection.name}
                 </option>
               ))}
             </select>
@@ -417,15 +502,32 @@ export default function AdminProductsPage() {
           </div>
         </div>
 
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="description">
-            توضیحات تکمیلی
-          </label>
-          <textarea
-            id="description"
-            className="min-h-[140px] rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
-            placeholder="توضیحات و نکات برجسته محصول را بنویسید..."
-            {...register("description")}
+        <div className="grid gap-5 md:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <label className="text-sm font-medium text-[var(--color-foreground)]" htmlFor="description">
+              توضیحات تکمیلی
+            </label>
+            <textarea
+              id="description"
+              className="min-h-[140px] rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-4 py-3 text-sm text-[var(--color-foreground)] focus:border-[var(--color-accent)] focus:outline-none"
+              placeholder="توضیحات و نکات برجسته محصول را بنویسید..."
+              {...register("description")}
+            />
+          </div>
+
+          <Controller
+            control={control}
+            name="image"
+            render={({ field, fieldState }) => (
+              <ImageUpload
+                value={field.value}
+                onChange={field.onChange}
+                error={fieldState.error?.message}
+                label="تصویر محصول"
+                accept="image/*"
+                maxSize={5}
+              />
+            )}
           />
         </div>
 
@@ -488,13 +590,27 @@ export default function AdminProductsPage() {
           </div>
         )}
 
-        <div className="flex items-center justify-end">
+        <div className="flex items-center justify-end gap-3">
+          {isEditing && (
+            <button
+              type="button"
+              onClick={handleCancelEdit}
+              className="inline-flex items-center justify-center rounded-[var(--radius-base)] border border-[var(--color-border)] bg-white px-6 py-3 text-sm font-semibold text-[var(--color-foreground)] transition-all hover:bg-[var(--color-background-soft)]"
+            >
+              انصراف
+            </button>
+          )}
           <button
             type="submit"
             disabled={isSubmitting}
             className="inline-flex items-center justify-center rounded-[var(--radius-base)] bg-[var(--color-accent)] px-6 py-3 text-sm font-semibold text-white transition-all hover:bg-[var(--color-accent-strong)] disabled:cursor-not-allowed disabled:opacity-70"
           >
-            {isSubmitting ? "در حال ارسال..." : "ثبت محصول"}
+            {isSubmitting
+              ? "در حال ارسال..."
+              : isEditing
+                ? "ذخیره تغییرات"
+                : "ثبت محصول"
+            }
           </button>
         </div>
       </form>
@@ -514,13 +630,40 @@ export default function AdminProductsPage() {
                 className="rounded-[var(--radius-base)] border border-[var(--color-border)] bg-[var(--color-background-soft)]/70 p-4 text-sm shadow-[var(--shadow-soft)]"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-semibold text-[var(--color-foreground)]">{perfume.name_fa}</p>
-                    <p className="text-xs text-[var(--color-foreground-subtle)]">{perfume.name_en}</p>
+                  <div className="flex items-start gap-3">
+                    {perfume.image && (
+                      <img
+                        src={perfume.image}
+                        alt={perfume.name_fa}
+                        className="h-16 w-16 rounded-[var(--radius-base)] object-cover"
+                      />
+                    )}
+                    <div>
+                      <p className="font-semibold text-[var(--color-foreground)]">{perfume.name_fa}</p>
+                      <p className="text-xs text-[var(--color-foreground-subtle)]">{perfume.name_en}</p>
+                    </div>
                   </div>
-                  <div className="text-xs text-[var(--color-foreground-muted)]">
-                    {perfume.brand && <p>برند: {perfume.brand.name_fa}</p>}
-                    {perfume.collection && <p>کالکشن: {perfume.collection.name_fa}</p>}
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs text-[var(--color-foreground-muted)]">
+                      {perfume.brand && <p>برند: {perfume.brand.name}</p>}
+                      {perfume.collection && <p>کالکشن: {perfume.collection.name}</p>}
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleEdit(perfume)}
+                        className="rounded px-3 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-100"
+                        title="ویرایش"
+                      >
+                        ویرایش
+                      </button>
+                      <button
+                        onClick={() => handleDelete(perfume)}
+                        className="rounded px-3 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-100"
+                        title="حذف"
+                      >
+                        حذف
+                      </button>
+                    </div>
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2 text-xs text-[var(--color-foreground-muted)]">

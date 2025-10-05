@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import ConditionalBodyClass from "@/components/ConditionalBodyClass";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -32,7 +33,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="fa" dir="rtl">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased kiosk-body`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ConditionalBodyClass />
         {children}
       </body>
     </html>
