@@ -1,18 +1,14 @@
-FROM node:18-alpine
-
+# Dockerfile for Next.js
+FROM node:20-alpine AS builder
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-RUN npm ci --only=production
-
-# Copy source code
+RUN npm install --frozen-lockfile
 COPY . .
-
-# Build the application
 RUN npm run build
 
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+COPY --from=builder /app ./
 EXPOSE 3000
-
-# Start the application
 CMD ["npm", "start"]
